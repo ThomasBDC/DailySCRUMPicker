@@ -1,4 +1,5 @@
-import { PERSON_COUNT, COLORS } from './constants.js';
+import { ParticipantManager } from './participants.js';
+import { PERSON_RADIUS, SCENE_SIZE, COLORS } from './constants.js';
 import { Person } from './Person.js';
 import { Scene } from './scene.js';
 
@@ -9,18 +10,25 @@ class Game {
         this.running = false;
         this.spotlightPhase = false;
         this.chosenIdx = null;
+        this.participantManager = new ParticipantManager();
         this.init();
     }
 
     init() {
-        this.createPersons();
+        // Attendre que les participants soient configurés
+        window.addEventListener('participantsReady', (event) => {
+            this.createPersons(event.detail);
+        });
+
         this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
         this.animate();
     }
 
-    createPersons() {
-        for (let i = 0; i < PERSON_COUNT; i++) {
+    createPersons(participants) {
+        this.persons = [];
+        for (let i = 0; i < participants.length; i++) {
             const person = new Person(COLORS[i % COLORS.length]);
+            person.group.userData.name = participants[i].name;
             this.scene.scene.add(person.group);
             this.persons.push(person);
         }
