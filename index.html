@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>DailySCRUMPicker 3D</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #222; }
+        #info { position: absolute; top: 10px; left: 10px; color: #fff; z-index: 1; font-family: Arial; }
+    </style>
+</head>
+<body>
+    <div id="info">Cliquez sur la scène pour lancer les personnages !</div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+    <script>
+        // Paramètres de la scène
+        const PERSON_COUNT = 6;
+        const PERSON_RADIUS = 1;
+        const SCENE_SIZE = 12;
+        let running = false;
+        let persons = [];
+        let velocities = [];
+        let spotlight = null;
+        let spotlightTarget = null;
+        let scene, camera, renderer;
+        let spotlightPhase = false; // true si spotlight actif
+        let chosenIdx = null; // index du personnage mis en valeur
+
+        // Fonction d'initialisation
+        function init() {
+            // Création de la scène
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222233);
+
+            // Caméra
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 10, 18);
+            camera.lookAt(0, 0, 0);
+
+            // Lumière ambiante
+            const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambient);
+
+            // Lumière directionnelle
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            dirLight.position.set(10, 20, 10);
+            scene.add(dirLight);
+
+            // Création des personnages
+            persons = [];
+            velocities = [];
+            const colors = [0xff5555, 0x55ff55, 0x5555ff, 0xffff55, 0xff55ff, 0x55ffff];
+            for (let i = 0; i < PERSON_COUNT; i++) {
+                // CapsuleGeometry pour le corps
+                const geometry = new THREE.CapsuleGeometry(PERSON_RADIUS * 0.6, PERSON_RADIUS * 1.2, 8, 16);
+                const material = new THREE.MeshStandardMaterial({ color: colors[i % colors.length] });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(
+                    (Math.random() - 0.5) * SCENE_SIZE * 0.5,
+                    PERSON_RADIUS,
+                    (Math.random() - 0.5) * SCENE_SIZE * 0.5
+                );
+                scene.add(mesh);
+                persons.push(mesh);
+                velocities.push(new THREE.Vector3(0, 0, 0)); // Immobile au départ
+            }
+
+            // SpotLight pour mettre en valeur un personnage
+            spotlight = new THREE.SpotLight(0xffffff, 3.5, 40, Math.PI / 5, 0.8, 1);
+            spotlight.position.set(0, 10, 0);
+            spotlight.visible = false;
+            spotlight.castShadow = true; // Active les ombres
+            spotlight.shadow.mapSize.width = 1024;
+            spotlight.shadow.mapSize.height = 1024;
+            scene.add(spotlight);
+            spotlightTarget = new THREE.Object3D();
+            scene.add(spotlightTarget);
+            spotlight.target = spotlightTarget;
+
+            // Ajout d'un halo lumineux (Lensflare) sur le spotlight
+            // Utilisation d'un sprite pour simuler le halo
+            const haloTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/lensflare/lensflare0.png');
+            const haloMaterial = new THREE.SpriteMaterial({ map: haloTexture, color: 0xffffff, transparent: true, opacity: 0.5 });
+            spotlight.halo = new THREE.Sprite(haloMaterial);
+            spotlight.halo.scale.set(3, 3, 1);
+            spotlight.halo.visible = false;
+            scene.add(spotlight.halo);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Resize
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('click', onCanvasClick);
+        }
+
+        // Gestion du redimensionnement
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Gestion du clic sur le canvas
+        function onCanvasClick() {
+            if (persons.length === 0) return;
+            if (!running && !spotlightPhase) {
+                // Lancement de la course
+                running = true;
+                for (let i = 0; i < persons.length; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    velocities[i].set(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(0.15 + Math.random() * 0.15);
+                }
+                // Timer pour arrêt de la course
+                setTimeout(() => {
+                    running = false;
+                    // Arrêt des personnages
+                    for (let i = 0; i < velocities.length; i++) velocities[i].set(0, 0, 0);
+                    // Spotlight sur un personnage choisi
+                    chosenIdx = Math.floor(Math.random() * persons.length);
+                    spotlight.visible = true;
+                    spotlightTarget.position.copy(persons[chosenIdx].position);
+                    spotlight.position.set(
+                        persons[chosenIdx].position.x,
+                        persons[chosenIdx].position.y + 7,
+                        persons[chosenIdx].position.z
+                    );
+                    spotlight.intensity = 4.5;
+                    spotlight.angle = Math.PI / 6;
+                    spotlight.penumbra = 0.9;
+                    spotlight.distance = 25;
+                    spotlight.chosenIdx = chosenIdx;
+                    // Affiche le halo lumineux
+                    spotlight.halo.position.set(
+                        persons[chosenIdx].position.x,
+                        persons[chosenIdx].position.y + 7.2,
+                        persons[chosenIdx].position.z
+                    );
+                    spotlight.halo.visible = true;
+                    spotlightPhase = true;
+                }, 2000); // 2 secondes de course
+            } else if (spotlightPhase) {
+                // Au clic suivant, le personnage mis en valeur disparaît
+                if (chosenIdx !== null && persons[chosenIdx]) {
+                    scene.remove(persons[chosenIdx]);
+                    persons.splice(chosenIdx, 1);
+                    velocities.splice(chosenIdx, 1);
+                }
+                spotlight.visible = false;
+                spotlight.halo.visible = false;
+                spotlight.chosenIdx = undefined;
+                chosenIdx = null;
+                spotlightPhase = false;
+            }
+        }
+
+        // Boucle d'animation
+        function animate() {
+            requestAnimationFrame(animate);
+            // Si les personnages courent
+            if (running) {
+                for (let i = 0; i < persons.length; i++) {
+                    // Déplacement
+                    persons[i].position.add(velocities[i]);
+                    // Collision avec les bords
+                    if (Math.abs(persons[i].position.x) > SCENE_SIZE / 2 - PERSON_RADIUS) {
+                        velocities[i].x *= -1;
+                        persons[i].position.x = Math.sign(persons[i].position.x) * (SCENE_SIZE / 2 - PERSON_RADIUS);
+                    }
+                    if (Math.abs(persons[i].position.z) > SCENE_SIZE / 2 - PERSON_RADIUS) {
+                        velocities[i].z *= -1;
+                        persons[i].position.z = Math.sign(persons[i].position.z) * (SCENE_SIZE / 2 - PERSON_RADIUS);
+                    }
+                }
+            }
+            // Spotlight et vol du personnage après la course
+            if (spotlightPhase && chosenIdx !== null && persons[chosenIdx]) {
+                // Animation du spotlight
+                spotlightTarget.position.copy(persons[chosenIdx].position);
+                spotlight.position.set(
+                    persons[chosenIdx].position.x,
+                    persons[chosenIdx].position.y + 7,
+                    persons[chosenIdx].position.z
+                );
+                spotlight.intensity = 4.5 + Math.sin(performance.now() * 0.008) * 1.2;
+                // Animation du halo lumineux
+                spotlight.halo.position.set(
+                    persons[chosenIdx].position.x,
+                    persons[chosenIdx].position.y + 7.2,
+                    persons[chosenIdx].position.z
+                );
+                spotlight.halo.material.opacity = 0.5 + Math.abs(Math.sin(performance.now() * 0.008)) * 0.4;
+                // Animation de vol (élévation du personnage)
+                if (!persons[chosenIdx].flyStart) persons[chosenIdx].flyStart = performance.now();
+                let t = (performance.now() - persons[chosenIdx].flyStart) / 1200; // 1.2s pour s'élever
+                if (t < 1) {
+                    persons[chosenIdx].position.y = PERSON_RADIUS + 2 * t;
+                } else {
+                    persons[chosenIdx].position.y = PERSON_RADIUS + 2;
+                }
+            }
+            renderer.render(scene, camera);
+        }
+
+        // Lancement de l'application
+        init();
+        animate();
+    </script>
+</body>
+</html>
