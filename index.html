@@ -3,15 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>DailySCRUMPicker 3D</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #222; }
-        #info { position: absolute; top: 10px; left: 10px; color: #fff; z-index: 1; font-family: Arial; }
-    </style>
+    <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
     <div id="info">Cliquez sur la scène pour lancer les personnages !</div>
     <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
-    <script>
+    <script type="module" src="js/main.js">
         // Paramètres de la scène
         const PERSON_COUNT = 6;
         const PERSON_RADIUS = 1;
