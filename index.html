@@ -50,17 +50,48 @@
             velocities = [];
             const colors = [0xff5555, 0x55ff55, 0x5555ff, 0xffff55, 0xff55ff, 0x55ffff];
             for (let i = 0; i < PERSON_COUNT; i++) {
-                // CapsuleGeometry pour le corps
-                const geometry = new THREE.CapsuleGeometry(PERSON_RADIUS * 0.6, PERSON_RADIUS * 1.2, 8, 16);
-                const material = new THREE.MeshStandardMaterial({ color: colors[i % colors.length] });
-                const mesh = new THREE.Mesh(geometry, material);
-                mesh.position.set(
+                // Groupe pour contenir le personnage
+                const personGroup = new THREE.Group();
+
+                // Corps plus rond (style Fall Guys)
+                const bodyGeometry = new THREE.SphereGeometry(PERSON_RADIUS * 0.8, 32, 32);
+                const bodyMaterial = new THREE.MeshStandardMaterial({ color: colors[i % colors.length] });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.scale.set(1, 1.2, 0.8); // Légèrement ovale
+                personGroup.add(body);
+
+                // Jambes plus courtes et trapues
+                const legGeometry = new THREE.CapsuleGeometry(PERSON_RADIUS * 0.2, PERSON_RADIUS * 0.4, 8, 8);
+                const legMaterial = new THREE.MeshStandardMaterial({ color: colors[i % colors.length].toString(16) });
+                
+                const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                leftLeg.position.set(-PERSON_RADIUS * 0.3, -PERSON_RADIUS * 0.8, 0);
+                personGroup.add(leftLeg);
+
+                const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                rightLeg.position.set(PERSON_RADIUS * 0.3, -PERSON_RADIUS * 0.8, 0);
+                personGroup.add(rightLeg);
+
+                // Yeux caractéristiques de Fall Guys
+                const eyeGeometry = new THREE.SphereGeometry(PERSON_RADIUS * 0.15, 16, 16);
+                const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+                
+                const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                leftEye.position.set(-PERSON_RADIUS * 0.25, PERSON_RADIUS * 0.2, PERSON_RADIUS * 0.6);
+                personGroup.add(leftEye);
+
+                const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                rightEye.position.set(PERSON_RADIUS * 0.25, PERSON_RADIUS * 0.2, PERSON_RADIUS * 0.6);
+                personGroup.add(rightEye);
+
+                // Positionnement du groupe
+                personGroup.position.set(
                     (Math.random() - 0.5) * SCENE_SIZE * 0.5,
                     PERSON_RADIUS,
                     (Math.random() - 0.5) * SCENE_SIZE * 0.5
                 );
-                scene.add(mesh);
-                persons.push(mesh);
+                scene.add(personGroup);
+                persons.push(personGroup);
                 velocities.push(new THREE.Vector3(0, 0, 0)); // Immobile au départ
             }
 
