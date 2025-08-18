@@ -24,34 +24,41 @@ export class Scene {
     }
 
     setupSpotlight() {
-        this.spotlight = new THREE.SpotLight(0xffffff, 3.5, 40, Math.PI / 5, 0.8, 1);
-        this.spotlight.position.set(0, 10, 0);
+        this.spotlightCeilingY = 14;
+
+        this.spotlight = new THREE.SpotLight(0xffffff, 2.2, 60, Math.PI / 10, 0.45, 2);
+        this.spotlight.position.set(0, this.spotlightCeilingY, 0);
         this.spotlight.visible = false;
         this.spotlight.castShadow = true;
         this.spotlight.shadow.mapSize.width = 1024;
         this.spotlight.shadow.mapSize.height = 1024;
+        this.spotlight.shadow.radius = 3;
         this.scene.add(this.spotlight);
 
         this.spotlightTarget = new THREE.Object3D();
         this.scene.add(this.spotlightTarget);
         this.spotlight.target = this.spotlightTarget;
 
-        // Halo lumineux
-        const haloTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/lensflare/lensflare0.png');
-        const haloMaterial = new THREE.SpriteMaterial({ 
-            map: haloTexture, 
-            color: 0xffffff, 
-            transparent: true, 
-            opacity: 0.5 
+        const beamMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.18,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
         });
-        this.spotlight.halo = new THREE.Sprite(haloMaterial);
-        this.spotlight.halo.scale.set(3, 3, 1);
-        this.spotlight.halo.visible = false;
-        this.scene.add(this.spotlight.halo);
+        const beamGeometry = new THREE.CylinderGeometry(0.04, 1, 1, 32, 1, true);
+        this.spotlightBeam = new THREE.Mesh(beamGeometry, beamMaterial);
+        this.spotlightBeam.visible = false;
+        this.spotlightBeam.castShadow = false;
+        this.spotlightBeam.receiveShadow = false;
+        this.scene.add(this.spotlightBeam);
     }
 
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
         window.addEventListener('resize', () => this.onWindowResize());
@@ -67,17 +74,22 @@ export class Scene {
         this.spotlightTarget.position.copy(position);
         this.spotlight.position.set(
             position.x,
-            position.y + 7,
+            this.spotlightCeilingY,
             position.z
         );
-        this.spotlight.intensity = 4.5 + Math.sin(performance.now() * 0.008) * 1.2;
 
-        this.spotlight.halo.position.set(
-            position.x,
-            position.y + 7.2,
-            position.z
-        );
-        this.spotlight.halo.material.opacity = 0.5 + Math.abs(Math.sin(performance.now() * 0.008)) * 0.4;
+        const lightPos = this.spotlight.position;
+        const targetPos = position.clone();
+        const distance = lightPos.distanceTo(targetPos);
+        const bottomRadius = Math.max(0.4, Math.tan(this.spotlight.angle) * distance);
+
+        this.spotlightBeam.visible = this.spotlight.visible;
+        this.spotlightBeam.position.copy(lightPos).add(targetPos).multiplyScalar(0.5);
+        this.spotlightBeam.scale.set(bottomRadius, distance, bottomRadius);
+
+        const direction = new THREE.Vector3().subVectors(targetPos, lightPos).normalize();
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+        this.spotlightBeam.quaternion.copy(quaternion);
     }
 
     render() {

@@ -60,7 +60,7 @@ class Game {
         const chosenPerson = this.persons[this.chosenIdx];
         
         this.scene.spotlight.visible = true;
-        this.scene.spotlight.halo.visible = true;
+        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
         this.spotlightPhase = true;
         chosenPerson.group.flyStart = performance.now();
     }
@@ -73,7 +73,7 @@ class Game {
         }
         
         this.scene.spotlight.visible = false;
-        this.scene.spotlight.halo.visible = false;
+        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = false;
         this.chosenIdx = null;
         this.spotlightPhase = false;
     }
