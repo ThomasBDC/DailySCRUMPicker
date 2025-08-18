@@ -21,6 +21,14 @@ class Game {
         });
 
         this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
+        
+        // Prépare l'étiquette de nom
+        this.nameEl = document.getElementById('name-display');
+        if (this.nameEl) {
+            this.nameEl.style.display = 'none';
+            this.nameEl.style.bottom = 'auto';
+        }
+
         this.animate();
     }
 
@@ -63,6 +71,13 @@ class Game {
         if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
         this.spotlightPhase = true;
         chosenPerson.group.flyStart = performance.now();
+
+        // Affiche le prénom sous la personne
+        if (this.nameEl) {
+            this.nameEl.textContent = chosenPerson.group.userData.name || '';
+            this.nameEl.style.display = 'block';
+            this.updateNameLabelPosition();
+        }
     }
 
     removePerson() {
@@ -76,6 +91,11 @@ class Game {
         if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = false;
         this.chosenIdx = null;
         this.spotlightPhase = false;
+
+        // Masque l'étiquette
+        if (this.nameEl) {
+            this.nameEl.style.display = 'none';
+        }
     }
 
     update() {
@@ -88,6 +108,8 @@ class Game {
             if (chosenPerson) {
                 this.scene.updateSpotlight(chosenPerson.group.position);
                 this.updateFlyingAnimation(chosenPerson);
+                // Met à jour la position de l'étiquette
+                this.updateNameLabelPosition();
             }
         }
     }
@@ -101,6 +123,38 @@ class Game {
         } else {
             person.group.position.y = PERSON_RADIUS + 2;
         }
+    }
+
+    // Positionne #name-display sous la personne sélectionnée
+    updateNameLabelPosition() {
+        if (!this.nameEl || this.chosenIdx === null) return;
+        const chosenPerson = this.persons[this.chosenIdx];
+        if (!chosenPerson) return;
+
+        const worldPos = chosenPerson.group.position.clone();
+        // Décale vers le bas en unités monde pour apparaître sous la personne
+        worldPos.y -= PERSON_RADIUS * 0.9;
+
+        const projected = worldPos.clone().project(this.scene.camera);
+
+        const width = this.scene.renderer.domElement.clientWidth;
+        const height = this.scene.renderer.domElement.clientHeight;
+
+        const x = (projected.x * 0.5 + 0.5) * width;
+        const y = (-projected.y * 0.5 + 0.5) * height + 16; // léger offset vers le bas en px
+
+        // Si derrière la caméra, masque
+        if (projected.z > 1) {
+            this.nameEl.style.display = 'none';
+            return;
+        } else {
+            this.nameEl.style.display = 'block';
+        }
+
+        this.nameEl.style.left = `${x}px`;
+        this.nameEl.style.top = `${y}px`;
+        this.nameEl.style.bottom = 'auto';
+        this.nameEl.style.transform = 'translate(-50%, 0)';
     }
 
     animate() {
