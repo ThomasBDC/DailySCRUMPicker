@@ -35,7 +35,8 @@ class Game {
     createPersons(participants) {
         this.persons = [];
         for (let i = 0; i < participants.length; i++) {
-            const person = new Person(COLORS[i % COLORS.length]);
+            const color = COLORS[i % COLORS.length];
+            const person = new Person(color, participants[i].faceUrl);
             person.group.userData.name = participants[i].name;
             this.scene.scene.add(person.group);
             this.persons.push(person);

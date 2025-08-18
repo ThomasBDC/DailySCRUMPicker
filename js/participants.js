@@ -1,6 +1,7 @@
 export class Participant {
-    constructor(name) {
+    constructor(name, faceUrl = null) {
         this.name = name;
+        this.faceUrl = faceUrl;
         this.mesh = null;
     }
 }
@@ -33,6 +34,7 @@ export class ParticipantManager {
         row.className = 'participant-row';
         row.innerHTML = `
             <input type="text" placeholder="Nom du participant" value="Participant ${list.children.length + 1}">
+            <input type="file" class="face-input" accept="image/*">
             <button class="remove-participant">×</button>
         `;
         list.appendChild(row);
@@ -45,17 +47,33 @@ export class ParticipantManager {
         }
     }
 
-    getParticipants() {
-        const inputs = document.querySelectorAll('#participants-list input');
-        return Array.from(inputs).map(input => new Participant(input.value.trim() || 'Anonyme'));
-    }
-
     startGame() {
-        this.participants = this.getParticipants();
-        this.setupFormElement.classList.add('hidden');
-        // Émet un événement personnalisé pour informer le jeu que les participants sont prêts
-        const event = new CustomEvent('participantsReady', { detail: this.participants });
-        window.dispatchEvent(event);
+        const list = document.getElementById('participants-list');
+        const rows = Array.from(list.getElementsByClassName('participant-row'));
+
+        const readAsDataURL = (file) => new Promise((resolve) => {
+            if (!file) return resolve(null);
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+        });
+
+        const promises = rows.map(async (row, idx) => {
+            const nameInput = row.querySelector('input[type="text"]');
+            const fileInput = row.querySelector('input[type="file"]');
+            const name = (nameInput?.value || '').trim() || `Participant ${idx + 1}`;
+            const file = fileInput?.files?.[0] || null;
+            const faceUrl = await readAsDataURL(file);
+            return new Participant(name, faceUrl);
+        });
+
+        Promise.all(promises).then((participants) => {
+            this.participants = participants;
+            this.setupFormElement.classList.add('hidden');
+            const event = new CustomEvent('participantsReady', { detail: this.participants });
+            window.dispatchEvent(event);
+        });
     }
 
     showNameDisplay(name) {
