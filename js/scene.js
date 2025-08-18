@@ -29,7 +29,7 @@ export class Scene {
     setupSpotlight() {
         this.spotlightCeilingY = 80;
 
-        this.spotlight = new THREE.SpotLight(0xffffff, 2.2, 60, Math.PI / 10, 0.45, 2);
+        this.spotlight = new THREE.SpotLight(0xffffff, 2.2, 120, Math.PI / 10, 0.45, 2);
         this.spotlight.position.set(0, this.spotlightCeilingY, 0);
         this.spotlight.visible = false;
         this.spotlight.castShadow = true;
@@ -80,7 +80,10 @@ export class Scene {
     }
 
     updateSpotlight(position) {
-        this.spotlightTarget.position.copy(position);
+        // Cible et halo au sol (y = 0)
+        const groundPos = new THREE.Vector3(position.x, 0, position.z);
+
+        this.spotlightTarget.position.copy(groundPos);
         this.spotlight.position.set(
             position.x,
             this.spotlightCeilingY,
@@ -89,13 +92,13 @@ export class Scene {
 
         // Met à jour le halo
         if (this.halo) {
-            this.halo.update(position);
+            this.halo.update(groundPos);
         }
 
         // Met à jour le faisceau
         if (this.spotlightBeam) {
             const lightPos = this.spotlight.position;
-            const targetPos = position.clone();
+            const targetPos = groundPos;
             const distance = lightPos.distanceTo(targetPos);
             const bottomRadius = Math.max(0.35, Math.tan(this.spotlight.angle) * distance);
 
