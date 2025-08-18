@@ -72,6 +72,8 @@ class Game {
         if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
         this.spotlightPhase = true;
         chosenPerson.group.flyStart = performance.now();
+        // Remise à zéro des rotations pour un flottement propre
+        chosenPerson.group.rotation.set(0, 0, 0);
 
         // Affiche le prénom sous la personne
         if (this.nameEl) {
@@ -119,12 +121,27 @@ class Game {
     updateFlyingAnimation(person) {
         if (!person.group.flyStart) return;
         
-        let t = (performance.now() - person.group.flyStart) / 1200;
-        if (t < 1) {
-            person.group.position.y = PERSON_RADIUS + 2 * t;
-        } else {
-            person.group.position.y = PERSON_RADIUS + 2;
+        const elapsed = performance.now() - person.group.flyStart;
+        const riseDurationMs = 1200;
+        if (elapsed < riseDurationMs) {
+            const t = elapsed / riseDurationMs;
+            // Lissage pour une montée douce (easeOutCubic)
+            const eased = 1 - Math.pow(1 - t, 3);
+            person.group.position.y = PERSON_RADIUS + 2 * eased;
+            // Pas de rotation pendant la montée
+            return;
         }
+
+        // Flottement 3D après la montée
+        const floatT = (elapsed - riseDurationMs) / 1000;
+        const baseY = PERSON_RADIUS + 2;
+        const bob = Math.sin(floatT * 2.2) * 0.3; // amplitude 0.3u
+        person.group.position.y = baseY + bob;
+
+        // Inclinaisons douces X/Z et légère rotation Y continue
+        person.group.rotation.x = Math.sin(floatT * 1.7) * 0.12;
+        person.group.rotation.z = Math.cos(floatT * 1.3) * 0.08;
+        person.group.rotation.y = floatT * 0.5; // ~0.5 rad/s
     }
 
     // Positionne #name-display sous la personne sélectionnée
