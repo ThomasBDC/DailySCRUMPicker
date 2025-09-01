@@ -180,6 +180,9 @@ export class Person {
         // Déplacement
         this.group.position.add(this.velocity);
 
+        // Rotation 3D du personnage vers sa direction de mouvement
+        this.#updateRotation3D(dt);
+
         // Animation de course
         this.#updateRunningAnimation(dt);
         
@@ -194,55 +197,201 @@ export class Person {
         }
     }
 
+    #updateRotation3D(dt) {
+        const speed = this.velocity.length();
+        const moving = this.isRunning && speed > 0.01;
+        
+        if (moving) {
+            // Calculer l'angle de direction du mouvement
+            const moveAngle = Math.atan2(this.velocity.z, this.velocity.x);
+            
+            // Le personnage doit être face à sa direction de mouvement
+            // Par défaut, le personnage regarde vers +Z (face à la caméra)
+            // Donc quand il va vers +Z, il ne doit pas tourner (angle = 0)
+            // Quand il va vers +X, il doit tourner de 90° vers la droite
+            // Quand il va vers -Z, il doit tourner de 180° (dos à la caméra)
+            // Quand il va vers -X, il doit tourner de -90° vers la gauche
+            const currentRotation = this.group.rotation.y;
+            // Le personnage doit faire face à sa direction de mouvement
+            // L'angle de rotation doit être l'angle de direction du mouvement
+            // Mais il faut ajuster car le modèle est orienté vers +Z par défaut
+            let targetRotation = moveAngle - Math.PI / 2;
+            
+            // Ajuster la rotation pour éviter les rotations de 360°
+            let angleDiff = targetRotation - currentRotation;
+            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+            
+            // Interpolation fluide de la rotation
+            const rotationSpeed = 15.0; // Vitesse de rotation plus rapide pour un effet plus dynamique
+            this.group.rotation.y += angleDiff * rotationSpeed * dt;
+            
+            // Normaliser la rotation
+            while (this.group.rotation.y > Math.PI) this.group.rotation.y -= 2 * Math.PI;
+            while (this.group.rotation.y < -Math.PI) this.group.rotation.y += 2 * Math.PI;
+            
+        } else {
+            // Retour doux à la rotation neutre (face à la caméra) quand immobile
+            const currentRotation = this.group.rotation.y;
+            let targetRotation = 0; // Face à la caméra (+Z)
+            
+            let angleDiff = targetRotation - currentRotation;
+            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+            
+            const rotationSpeed = 8.0; // Vitesse de retour plus rapide
+            this.group.rotation.y += angleDiff * rotationSpeed * dt;
+        }
+    }
+
     #updateRunningAnimation(dt) {
         const speed = this.velocity.length();
         const moving = this.isRunning && speed > 0.01;
+        
         if (moving) {
-            // fréquence en fonction de la vitesse
-            const baseFreq = 7.0; // rad/s
-            const freq = baseFreq * (0.6 + Math.min(speed / 0.25, 1.4));
+            // Fréquence TRÈS rapide pour un effet comique maximal
+            const baseFreq = 12.0; // rad/s - beaucoup plus rapide !
+            const freq = baseFreq * (0.8 + Math.min(speed / 0.25, 2.0));
             this._runTime += dt * freq;
 
-            const legAmp = 0.6; // radians
-            const armAmp = 0.7; // radians
-            const torsoBobAmp = 0.05;
+            // Amplitudes TRÈS exagérées pour un effet comique maximal
+            const legAmp = 1.8; // radians - extrêmement exagéré !
+            const armAmp = 2.0; // radians - bras ultra exagérés !
+            const torsoBobAmp = 0.15; // oscillation du torse très prononcée
+            const headBobAmp = 0.06; // oscillation de la tête plus marquée
 
-            // Jambes (balance opposée)
+            // Jambes avec mouvement comique ultra exagéré
             if (this.leftLeg && this.rightLeg) {
+                // Mouvement principal des jambes (balance opposée) - TRÈS exagéré
                 this.leftLeg.rotation.x = Math.sin(this._runTime) * legAmp;
                 this.rightLeg.rotation.x = -Math.sin(this._runTime) * legAmp;
+                
+                // Mouvement latéral très accentué pour plus de comique
+                this.leftLeg.rotation.z = Math.sin(this._runTime * 0.9) * 0.25;
+                this.rightLeg.rotation.z = -Math.sin(this._runTime * 0.9) * 0.25;
+                
+                // Ajout d'un mouvement de rotation Y pour plus de dynamisme
+                this.leftLeg.rotation.y = Math.sin(this._runTime * 0.6) * 0.2;
+                this.rightLeg.rotation.y = -Math.sin(this._runTime * 0.6) * 0.2;
             }
-            // Bras (opposé aux jambes)
+
+            // Bras avec mouvement ultra exagéré et comique
             if (this.leftArm && this.rightArm) {
+                // Mouvement principal des bras (opposé aux jambes) - TRÈS exagéré
                 this.leftArm.rotation.x = -Math.sin(this._runTime) * armAmp;
                 this.rightArm.rotation.x = Math.sin(this._runTime) * armAmp;
+                
+                // Mouvement latéral ultra exagéré des bras
+                this.leftArm.rotation.z = Math.PI / 2.4 + Math.sin(this._runTime * 1.1) * 0.5;
+                this.rightArm.rotation.z = -Math.PI / 2.4 - Math.sin(this._runTime * 1.1) * 0.5;
+                
+                // Ajout d'un mouvement de rotation Y pour les bras
+                this.leftArm.rotation.y = Math.sin(this._runTime * 0.7) * 0.3;
+                this.rightArm.rotation.y = -Math.sin(this._runTime * 0.7) * 0.3;
             }
-            // Légère oscillation du torse
+
+            // Mains qui bougent de façon très exagérée avec les bras
+            if (this.leftHand && this.rightHand) {
+                this.leftHand.rotation.x = -Math.sin(this._runTime) * armAmp * 0.7;
+                this.rightHand.rotation.x = Math.sin(this._runTime) * armAmp * 0.7;
+                this.leftHand.rotation.z = Math.sin(this._runTime * 0.8) * 0.4;
+                this.rightHand.rotation.z = -Math.sin(this._runTime * 0.8) * 0.4;
+            }
+
+            // Pieds qui pivotent de façon très marquée
+            if (this.leftFoot && this.rightFoot) {
+                this.leftFoot.rotation.x = Math.sin(this._runTime) * 0.4;
+                this.rightFoot.rotation.x = -Math.sin(this._runTime) * 0.4;
+                this.leftFoot.rotation.z = Math.sin(this._runTime * 0.5) * 0.2;
+                this.rightFoot.rotation.z = -Math.sin(this._runTime * 0.5) * 0.2;
+            }
+
+            // Oscillation du torse très prononcée
             if (this.torso) {
                 this.torso.position.y = PERSON_RADIUS * 0.2 + Math.abs(Math.sin(this._runTime)) * torsoBobAmp;
+                // Rotation du torse très marquée pour plus de dynamisme
+                this.torso.rotation.y = Math.sin(this._runTime * 0.7) * 0.2;
+                this.torso.rotation.z = Math.sin(this._runTime * 0.4) * 0.1;
             }
+
+            // Oscillation de la tête très marquée
+            if (this.head) {
+                this.head.rotation.y = Math.sin(this._runTime * 0.8) * 0.15;
+                this.head.rotation.z = Math.sin(this._runTime * 0.3) * 0.08;
+                this.head.position.y = PERSON_RADIUS * 0.95 + Math.sin(this._runTime * 0.9) * headBobAmp;
+            }
+
         } else {
-            // Retour doux à la pose neutre
+            // Retour doux à la pose neutre avec interpolation plus fluide
             this._runTime = 0;
-            const relax = (value, factor = 0.18) => value * (1 - factor);
+            const relax = (value, factor = 0.15) => value * (1 - factor); // Plus rapide pour l'arrêt
+            
+            // Retour des jambes à la position neutre
             if (this.leftLeg && this.rightLeg) {
                 this.leftLeg.rotation.x = relax(this.leftLeg.rotation.x);
                 this.rightLeg.rotation.x = relax(this.rightLeg.rotation.x);
+                this.leftLeg.rotation.z = relax(this.leftLeg.rotation.z);
+                this.rightLeg.rotation.z = relax(this.rightLeg.rotation.z);
+                this.leftLeg.rotation.y = relax(this.leftLeg.rotation.y);
+                this.rightLeg.rotation.y = relax(this.rightLeg.rotation.y);
             }
+            
+            // Retour des bras à la position neutre
             if (this.leftArm && this.rightArm) {
                 this.leftArm.rotation.x = relax(this.leftArm.rotation.x);
                 this.rightArm.rotation.x = relax(this.rightArm.rotation.x);
+                this.leftArm.rotation.z = this.leftArm.rotation.z + (Math.PI / 2.4 - this.leftArm.rotation.z) * 0.2;
+                this.rightArm.rotation.z = this.rightArm.rotation.z + (-Math.PI / 2.4 - this.rightArm.rotation.z) * 0.2;
+                this.leftArm.rotation.y = relax(this.leftArm.rotation.y);
+                this.rightArm.rotation.y = relax(this.rightArm.rotation.y);
             }
+            
+            // Retour des mains à la position neutre
+            if (this.leftHand && this.rightHand) {
+                this.leftHand.rotation.x = relax(this.leftHand.rotation.x);
+                this.rightHand.rotation.x = relax(this.rightHand.rotation.x);
+                this.leftHand.rotation.z = relax(this.leftHand.rotation.z);
+                this.rightHand.rotation.z = relax(this.rightHand.rotation.z);
+            }
+            
+            // Retour des pieds à la position neutre
+            if (this.leftFoot && this.rightFoot) {
+                this.leftFoot.rotation.x = relax(this.leftFoot.rotation.x);
+                this.rightFoot.rotation.x = relax(this.rightFoot.rotation.x);
+                this.leftFoot.rotation.z = relax(this.leftFoot.rotation.z);
+                this.rightFoot.rotation.z = relax(this.rightFoot.rotation.z);
+            }
+            
+            // Retour du torse à la position neutre
             if (this.torso) {
                 const targetY = PERSON_RADIUS * 0.2;
                 this.torso.position.y = this.torso.position.y + (targetY - this.torso.position.y) * 0.15;
+                this.torso.rotation.y = relax(this.torso.rotation.y);
+                this.torso.rotation.z = relax(this.torso.rotation.z);
+            }
+            
+            // Retour de la tête à la position neutre
+            if (this.head) {
+                this.head.rotation.y = relax(this.head.rotation.y);
+                this.head.rotation.z = relax(this.head.rotation.z);
+                const targetHeadY = PERSON_RADIUS * 0.95;
+                this.head.position.y = this.head.position.y + (targetHeadY - this.head.position.y) * 0.15;
             }
         }
     }
 
     startRunning() {
+        // Direction de mouvement plus variée avec des angles plus naturels
         const angle = Math.random() * Math.PI * 2;
-        this.velocity.set(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(0.15 + Math.random() * 0.15);
+        const speed = 0.15 + Math.random() * 0.2; // Vitesse variable
+        
+        // Créer un vecteur de vitesse avec une légère variation
+        this.velocity.set(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(speed);
+        
+        // Ajouter une légère variation aléatoire pour plus de naturel
+        this.velocity.x += (Math.random() - 0.5) * 0.03;
+        this.velocity.z += (Math.random() - 0.5) * 0.03;
+        
         this.isRunning = true;
     }
 
