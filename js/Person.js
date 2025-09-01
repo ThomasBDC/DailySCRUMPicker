@@ -23,35 +23,36 @@ export class Person {
         const accentMat = new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.4, metalness: 0.0 });
         const blackMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.5, metalness: 0.0 });
 
-        // Torse (capsule verticale)
+        // Torse (forme plus organique et arrondie comme Fall Guys)
         const torso = new THREE.Mesh(
-            new THREE.CapsuleGeometry(PERSON_RADIUS * 0.5, PERSON_RADIUS * 0.9, 12, 24),
+            new THREE.SphereGeometry(PERSON_RADIUS * 0.6, 32, 32),
             standardMat
         );
-        torso.position.set(0, PERSON_RADIUS * 0.2, 0);
+        torso.position.set(0, PERSON_RADIUS * 0.3, 0);
+        torso.scale.set(1, 1.2, 0.8); // Plus large et plus haut, moins profond
         this.#setShadow(torso);
         this.group.add(torso);
         this.torso = torso;
 
-        // Tête
-        const headRadius = PERSON_RADIUS * 0.45;
+        // Tête (plus grosse et plus ronde comme Fall Guys)
+        const headRadius = PERSON_RADIUS * 0.55;
         const head = new THREE.Mesh(
-            new THREE.SphereGeometry(headRadius, 24, 24),
+            new THREE.SphereGeometry(headRadius, 32, 32),
             standardMat
         );
-        head.position.set(0, PERSON_RADIUS * 0.95, 0);
+        head.position.set(0, PERSON_RADIUS * 1.1, 0);
         head.scale.set(1, this.headYScale, 1);
         this.#setShadow(head);
         this.group.add(head);
         this.head = head;
 
-        // Face plate (ovale blanc très proche du front)
+        // Face plate (plus grande et plus ronde comme Fall Guys)
         const facePlate = new THREE.Mesh(
-            new THREE.CircleGeometry(PERSON_RADIUS * 0.35, 24),
+            new THREE.CircleGeometry(PERSON_RADIUS * 0.45, 32),
             accentMat
         );
         facePlate.rotation.x = -Math.PI / 2 + 0.001;
-        facePlate.position.set(0, PERSON_RADIUS * 0.95, PERSON_RADIUS * 0.44);
+        facePlate.position.set(0, PERSON_RADIUS * 1.1, PERSON_RADIUS * 0.52);
         facePlate.scale.set(1, this.headYScale, 1);
         this.#setShadow(facePlate);
         this.group.add(facePlate);
@@ -99,12 +100,12 @@ export class Person {
             });
         }
 
-        // Yeux (sphères noires)
-        const eyeGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.09, 12, 12);
+        // Yeux (plus gros et plus expressifs comme Fall Guys)
+        const eyeGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.12, 16, 16);
         const leftEye = new THREE.Mesh(eyeGeom, blackMat);
-        leftEye.position.set(-PERSON_RADIUS * 0.16, PERSON_RADIUS * 1.1, PERSON_RADIUS * 0.47);
+        leftEye.position.set(-PERSON_RADIUS * 0.18, PERSON_RADIUS * 1.15, PERSON_RADIUS * 0.52);
         const rightEye = new THREE.Mesh(eyeGeom, blackMat);
-        rightEye.position.set(PERSON_RADIUS * 0.16, PERSON_RADIUS * 1.1, PERSON_RADIUS * 0.47);
+        rightEye.position.set(PERSON_RADIUS * 0.18, PERSON_RADIUS * 1.15, PERSON_RADIUS * 0.52);
         leftEye.visible = !this.faceUrl;
         rightEye.visible = !this.faceUrl;
         this.#setShadow(leftEye);
@@ -112,47 +113,53 @@ export class Person {
         this.group.add(leftEye);
         this.group.add(rightEye);
 
-        // Bras (capsules) + mains (sphères)
-        const armGeom = new THREE.CapsuleGeometry(PERSON_RADIUS * 0.12, PERSON_RADIUS * 0.55, 8, 12);
+        // Bras (plus courts et plus ronds comme Fall Guys)
+        const armGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.15, 16, 16);
         this.leftArm = new THREE.Mesh(armGeom, limbMat);
-        this.leftArm.position.set(-PERSON_RADIUS * 0.62, PERSON_RADIUS * 0.35, 0);
-        this.leftArm.rotation.z = Math.PI / 2.4;
+        this.leftArm.position.set(-PERSON_RADIUS * 0.7, PERSON_RADIUS * 0.4, 0);
+        this.leftArm.scale.set(1, 1.8, 1); // Plus long et plus fin
+        this.leftArm.rotation.z = Math.PI / 2.2;
         this.rightArm = new THREE.Mesh(armGeom, limbMat);
-        this.rightArm.position.set(PERSON_RADIUS * 0.62, PERSON_RADIUS * 0.35, 0);
-        this.rightArm.rotation.z = -Math.PI / 2.4;
+        this.rightArm.position.set(PERSON_RADIUS * 0.7, PERSON_RADIUS * 0.4, 0);
+        this.rightArm.scale.set(1, 1.8, 1); // Plus long et plus fin
+        this.rightArm.rotation.z = -Math.PI / 2.2;
         this.#setShadow(this.leftArm);
         this.#setShadow(this.rightArm);
         this.group.add(this.leftArm);
         this.group.add(this.rightArm);
 
-        const handGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.16, 16, 16);
+        // Mains (plus grosses et plus rondes comme Fall Guys)
+        const handGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.18, 20, 20);
         this.leftHand = new THREE.Mesh(handGeom, limbMat);
         this.rightHand = new THREE.Mesh(handGeom, limbMat);
-        this.leftHand.position.set(-PERSON_RADIUS * 0.95, PERSON_RADIUS * 0.22, 0);
-        this.rightHand.position.set(PERSON_RADIUS * 0.95, PERSON_RADIUS * 0.22, 0);
+        this.leftHand.position.set(-PERSON_RADIUS * 0.95, PERSON_RADIUS * 0.25, 0);
+        this.rightHand.position.set(PERSON_RADIUS * 0.95, PERSON_RADIUS * 0.25, 0);
         this.#setShadow(this.leftHand);
         this.#setShadow(this.rightHand);
         this.group.add(this.leftHand);
         this.group.add(this.rightHand);
 
-        // Jambes (capsules courtes) + pieds (ellipsoïdes)
-        const legGeom = new THREE.CapsuleGeometry(PERSON_RADIUS * 0.16, PERSON_RADIUS * 0.38, 8, 8);
+        // Jambes (plus courtes et plus rondes comme Fall Guys)
+        const legGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.18, 16, 16);
         this.leftLeg = new THREE.Mesh(legGeom, limbMat);
-        this.leftLeg.position.set(-PERSON_RADIUS * 0.22, -PERSON_RADIUS * 0.65, 0);
+        this.leftLeg.position.set(-PERSON_RADIUS * 0.25, -PERSON_RADIUS * 0.6, 0);
+        this.leftLeg.scale.set(1, 1.5, 1); // Plus courtes et plus épaisses
         this.rightLeg = new THREE.Mesh(legGeom, limbMat);
-        this.rightLeg.position.set(PERSON_RADIUS * 0.22, -PERSON_RADIUS * 0.65, 0);
+        this.rightLeg.position.set(PERSON_RADIUS * 0.25, -PERSON_RADIUS * 0.6, 0);
+        this.rightLeg.scale.set(1, 1.5, 1); // Plus courtes et plus épaisses
         this.#setShadow(this.leftLeg);
         this.#setShadow(this.rightLeg);
         this.group.add(this.leftLeg);
         this.group.add(this.rightLeg);
 
-        const footGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.2, 16, 16);
+        // Pieds (plus gros et plus ronds comme Fall Guys)
+        const footGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.22, 20, 20);
         this.leftFoot = new THREE.Mesh(footGeom, limbMat);
-        this.leftFoot.scale.set(1.4, 0.7, 1.8);
-        this.leftFoot.position.set(-PERSON_RADIUS * 0.22, -PERSON_RADIUS * 0.95, PERSON_RADIUS * 0.1);
+        this.leftFoot.scale.set(1.3, 0.8, 1.6); // Plus gros et plus arrondis
+        this.leftFoot.position.set(-PERSON_RADIUS * 0.25, -PERSON_RADIUS * 0.9, PERSON_RADIUS * 0.15);
         this.rightFoot = new THREE.Mesh(footGeom, limbMat);
-        this.rightFoot.scale.set(1.4, 0.7, 1.8);
-        this.rightFoot.position.set(PERSON_RADIUS * 0.22, -PERSON_RADIUS * 0.95, PERSON_RADIUS * 0.1);
+        this.rightFoot.scale.set(1.3, 0.8, 1.6); // Plus gros et plus arrondis
+        this.rightFoot.position.set(PERSON_RADIUS * 0.25, -PERSON_RADIUS * 0.9, PERSON_RADIUS * 0.15);
         this.#setShadow(this.leftFoot);
         this.#setShadow(this.rightFoot);
         this.group.add(this.leftFoot);
@@ -249,76 +256,76 @@ export class Person {
         const moving = this.isRunning && speed > 0.01;
         
         if (moving) {
-            // Fréquence TRÈS rapide pour un effet comique maximal
-            const baseFreq = 12.0; // rad/s - beaucoup plus rapide !
-            const freq = baseFreq * (0.8 + Math.min(speed / 0.25, 2.0));
+            // Fréquence très rapide pour des mouvements rebondis et dynamiques
+            const baseFreq = 15.0; // rad/s - encore plus rapide pour l'effet rebondi !
+            const freq = baseFreq * (0.9 + Math.min(speed / 0.25, 2.5));
             this._runTime += dt * freq;
 
-            // Amplitudes TRÈS exagérées pour un effet comique maximal
-            const legAmp = 1.8; // radians - extrêmement exagéré !
-            const armAmp = 2.0; // radians - bras ultra exagérés !
-            const torsoBobAmp = 0.15; // oscillation du torse très prononcée
-            const headBobAmp = 0.06; // oscillation de la tête plus marquée
+            // Amplitudes plus grandes et rebondies comme Fall Guys
+            const legAmp = 2.0; // radians - grands pas rebondis !
+            const armAmp = 2.2; // radians - bras très expressifs
+            const torsoBobAmp = 0.25; // oscillation du torse très rebondie
+            const headBobAmp = 0.15; // oscillation de la tête très marquée
 
-            // Jambes avec mouvement comique ultra exagéré
+            // Jambes avec grands pas rebondis comme Fall Guys
             if (this.leftLeg && this.rightLeg) {
-                // Mouvement principal des jambes (balance opposée) - TRÈS exagéré
+                // Mouvement principal des jambes (balance opposée) - grands pas rebondis !
                 this.leftLeg.rotation.x = Math.sin(this._runTime) * legAmp;
                 this.rightLeg.rotation.x = -Math.sin(this._runTime) * legAmp;
                 
-                // Mouvement latéral très accentué pour plus de comique
-                this.leftLeg.rotation.z = Math.sin(this._runTime * 0.9) * 0.25;
-                this.rightLeg.rotation.z = -Math.sin(this._runTime * 0.9) * 0.25;
+                // Mouvement latéral plus marqué pour l'effet rebondi
+                this.leftLeg.rotation.z = Math.sin(this._runTime * 0.9) * 0.4;
+                this.rightLeg.rotation.z = -Math.sin(this._runTime * 0.9) * 0.4;
                 
-                // Ajout d'un mouvement de rotation Y pour plus de dynamisme
-                this.leftLeg.rotation.y = Math.sin(this._runTime * 0.6) * 0.2;
-                this.rightLeg.rotation.y = -Math.sin(this._runTime * 0.6) * 0.2;
+                // Rotation Y plus prononcée pour plus de dynamisme
+                this.leftLeg.rotation.y = Math.sin(this._runTime * 0.6) * 0.3;
+                this.rightLeg.rotation.y = -Math.sin(this._runTime * 0.6) * 0.3;
             }
 
-            // Bras avec mouvement ultra exagéré et comique
+            // Bras avec mouvements très expressifs et rebondis
             if (this.leftArm && this.rightArm) {
-                // Mouvement principal des bras (opposé aux jambes) - TRÈS exagéré
+                // Mouvement principal des bras (opposé aux jambes) - très expressif !
                 this.leftArm.rotation.x = -Math.sin(this._runTime) * armAmp;
                 this.rightArm.rotation.x = Math.sin(this._runTime) * armAmp;
                 
-                // Mouvement latéral ultra exagéré des bras
-                this.leftArm.rotation.z = Math.PI / 2.4 + Math.sin(this._runTime * 1.1) * 0.5;
-                this.rightArm.rotation.z = -Math.PI / 2.4 - Math.sin(this._runTime * 1.1) * 0.5;
+                // Mouvement latéral très marqué des bras pour l'effet rebondi
+                this.leftArm.rotation.z = Math.PI / 2.2 + Math.sin(this._runTime * 1.1) * 0.6;
+                this.rightArm.rotation.z = -Math.PI / 2.2 - Math.sin(this._runTime * 1.1) * 0.6;
                 
-                // Ajout d'un mouvement de rotation Y pour les bras
-                this.leftArm.rotation.y = Math.sin(this._runTime * 0.7) * 0.3;
-                this.rightArm.rotation.y = -Math.sin(this._runTime * 0.7) * 0.3;
+                // Rotation Y plus prononcée pour plus de dynamisme
+                this.leftArm.rotation.y = Math.sin(this._runTime * 0.7) * 0.4;
+                this.rightArm.rotation.y = -Math.sin(this._runTime * 0.7) * 0.4;
             }
 
-            // Mains qui bougent de façon très exagérée avec les bras
+            // Mains qui bougent de façon très rebondie avec les bras
             if (this.leftHand && this.rightHand) {
-                this.leftHand.rotation.x = -Math.sin(this._runTime) * armAmp * 0.7;
-                this.rightHand.rotation.x = Math.sin(this._runTime) * armAmp * 0.7;
-                this.leftHand.rotation.z = Math.sin(this._runTime * 0.8) * 0.4;
-                this.rightHand.rotation.z = -Math.sin(this._runTime * 0.8) * 0.4;
+                this.leftHand.rotation.x = -Math.sin(this._runTime) * armAmp * 0.8;
+                this.rightHand.rotation.x = Math.sin(this._runTime) * armAmp * 0.8;
+                this.leftHand.rotation.z = Math.sin(this._runTime * 0.8) * 0.5;
+                this.rightHand.rotation.z = -Math.sin(this._runTime * 0.8) * 0.5;
             }
 
-            // Pieds qui pivotent de façon très marquée
+            // Pieds qui pivotent de façon très rebondie
             if (this.leftFoot && this.rightFoot) {
-                this.leftFoot.rotation.x = Math.sin(this._runTime) * 0.4;
-                this.rightFoot.rotation.x = -Math.sin(this._runTime) * 0.4;
-                this.leftFoot.rotation.z = Math.sin(this._runTime * 0.5) * 0.2;
-                this.rightFoot.rotation.z = -Math.sin(this._runTime * 0.5) * 0.2;
+                this.leftFoot.rotation.x = Math.sin(this._runTime) * 0.6;
+                this.rightFoot.rotation.x = -Math.sin(this._runTime) * 0.6;
+                this.leftFoot.rotation.z = Math.sin(this._runTime * 0.5) * 0.4;
+                this.rightFoot.rotation.z = -Math.sin(this._runTime * 0.5) * 0.4;
             }
 
-            // Oscillation du torse très prononcée
+            // Oscillation du torse très rebondie et dynamique
             if (this.torso) {
-                this.torso.position.y = PERSON_RADIUS * 0.2 + Math.abs(Math.sin(this._runTime)) * torsoBobAmp;
-                // Rotation du torse très marquée pour plus de dynamisme
-                this.torso.rotation.y = Math.sin(this._runTime * 0.7) * 0.2;
-                this.torso.rotation.z = Math.sin(this._runTime * 0.4) * 0.1;
+                this.torso.position.y = PERSON_RADIUS * 0.3 + Math.abs(Math.sin(this._runTime)) * torsoBobAmp;
+                // Rotation du torse très marquée pour l'effet rebondi
+                this.torso.rotation.y = Math.sin(this._runTime * 0.7) * 0.3;
+                this.torso.rotation.z = Math.sin(this._runTime * 0.4) * 0.2;
             }
 
-            // Oscillation de la tête très marquée
+            // Oscillation de la tête très rebondie et expressive
             if (this.head) {
-                this.head.rotation.y = Math.sin(this._runTime * 0.8) * 0.15;
-                this.head.rotation.z = Math.sin(this._runTime * 0.3) * 0.08;
-                this.head.position.y = PERSON_RADIUS * 0.95 + Math.sin(this._runTime * 0.9) * headBobAmp;
+                this.head.rotation.y = Math.sin(this._runTime * 0.8) * 0.25;
+                this.head.rotation.z = Math.sin(this._runTime * 0.5) * 0.15;
+                this.head.position.y = PERSON_RADIUS * 1.1 + Math.sin(this._runTime * 0.9) * headBobAmp;
             }
 
         } else {
@@ -340,8 +347,8 @@ export class Person {
             if (this.leftArm && this.rightArm) {
                 this.leftArm.rotation.x = relax(this.leftArm.rotation.x);
                 this.rightArm.rotation.x = relax(this.rightArm.rotation.x);
-                this.leftArm.rotation.z = this.leftArm.rotation.z + (Math.PI / 2.4 - this.leftArm.rotation.z) * 0.2;
-                this.rightArm.rotation.z = this.rightArm.rotation.z + (-Math.PI / 2.4 - this.rightArm.rotation.z) * 0.2;
+                this.leftArm.rotation.z = this.leftArm.rotation.z + (Math.PI / 2.2 - this.leftArm.rotation.z) * 0.2;
+                this.rightArm.rotation.z = this.rightArm.rotation.z + (-Math.PI / 2.2 - this.rightArm.rotation.z) * 0.2;
                 this.leftArm.rotation.y = relax(this.leftArm.rotation.y);
                 this.rightArm.rotation.y = relax(this.rightArm.rotation.y);
             }
@@ -364,7 +371,7 @@ export class Person {
             
             // Retour du torse à la position neutre
             if (this.torso) {
-                const targetY = PERSON_RADIUS * 0.2;
+                const targetY = PERSON_RADIUS * 0.3;
                 this.torso.position.y = this.torso.position.y + (targetY - this.torso.position.y) * 0.15;
                 this.torso.rotation.y = relax(this.torso.rotation.y);
                 this.torso.rotation.z = relax(this.torso.rotation.z);
@@ -374,7 +381,7 @@ export class Person {
             if (this.head) {
                 this.head.rotation.y = relax(this.head.rotation.y);
                 this.head.rotation.z = relax(this.head.rotation.z);
-                const targetHeadY = PERSON_RADIUS * 0.95;
+                const targetHeadY = PERSON_RADIUS * 1.1;
                 this.head.position.y = this.head.position.y + (targetHeadY - this.head.position.y) * 0.15;
             }
         }
