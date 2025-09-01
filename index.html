@@ -7,22 +7,43 @@
 </head>
 <body>
     <div id="info">Configurez les participants puis cliquez sur la scène pour lancer !</div>
-    <div id="setup-form">
-        <h2>Configuration des participants</h2>
-        <div id="participants-list">
-            <div class="participant-row">
-                <input type="text" placeholder="Nom du participant" value="Participant 1">
-                <img class="face-thumb" src="" alt="" title="Choisir une photo">
-                <input type="file" class="face-input" accept="image/*">
-                <label style="color:#000; font-family: Arial; font-size: 14px;">
-                    <input type="checkbox" class="display-input" checked> Afficher
-                </label>
-                <button class="remove-participant">×</button>
+    
+    <!-- Bouton pour ouvrir le panneau de configuration -->
+    <button id="config-button" class="config-button">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        Configuration
+    </button>
+
+    <!-- Panneau offcanvas -->
+    <div id="offcanvas-overlay" class="offcanvas-overlay"></div>
+    <div id="setup-form" class="offcanvas-panel">
+        <div class="offcanvas-header">
+            <h2>Configuration des participants</h2>
+            <button id="close-config" class="close-button">×</button>
+        </div>
+        <div class="offcanvas-content">
+            <div id="participants-list">
+                <div class="participant-row">
+                    <input type="text" placeholder="Nom du participant" value="Participant 1">
+                    <img class="face-thumb" src="" alt="" title="Choisir une photo">
+                    <input type="file" class="face-input" accept="image/*">
+                    <label style="color:#000; font-family: Arial; font-size: 14px;">
+                        <input type="checkbox" class="display-input" checked> Afficher
+                    </label>
+                    <button class="remove-participant">×</button>
+                </div>
+            </div>
+            <div class="offcanvas-actions">
+                <button id="add-participant">Ajouter un participant</button>
+                <button id="start-game">Commencer</button>
+                <button id="restart-game" class="secondary-button">Relancer la partie</button>
             </div>
         </div>
-        <button id="add-participant">Ajouter un participant</button>
-        <button id="start-game">Commencer</button>
     </div>
+
     <div id="name-display"></div>
     <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
     <script type="module" src="js/main.js"></script>

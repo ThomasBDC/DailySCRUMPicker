@@ -11,6 +11,7 @@ class Game {
         this.spotlightPhase = false;
         this.chosenIdx = null;
         this.participantManager = new ParticipantManager();
+        this.participantManager.setGameReference(this);
         this.init();
     }
 
@@ -33,13 +34,130 @@ class Game {
     }
 
     createPersons(participants) {
+        // Nettoyer les personnes existantes
+        this.persons.forEach(person => {
+            this.scene.scene.remove(person.group);
+        });
         this.persons = [];
+        
+        // Créer les nouvelles personnes
         for (let i = 0; i < participants.length; i++) {
             const color = COLORS[i % COLORS.length];
             const person = new Person(color, participants[i].faceUrl);
             person.group.userData.name = participants[i].name;
             this.scene.scene.add(person.group);
             this.persons.push(person);
+        }
+        
+        // Activer l'indicateur visuel du bouton de configuration
+        this.updateConfigButtonState();
+    }
+
+    // Méthode pour réinitialiser complètement le jeu
+    resetGame() {
+        // Arrêter toutes les animations en cours
+        this.running = false;
+        this.spotlightPhase = false;
+        this.chosenIdx = null;
+        
+        // Masquer le spotlight et le halo
+        this.scene.spotlight.visible = false;
+        if (this.scene.halo) this.scene.halo.setVisible(false);
+        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = false;
+        
+        // Masquer l'étiquette de nom
+        if (this.nameEl) {
+            this.nameEl.style.display = 'none';
+        }
+        
+        // Arrêter toutes les personnes
+        this.persons.forEach(person => {
+            person.stopRunning();
+            // Remettre les personnes à leur position initiale
+            person.group.position.set(0, PERSON_RADIUS, 0);
+            person.group.rotation.set(0, 0, 0);
+        });
+        
+        // Mettre à jour l'état du bouton de configuration
+        this.updateConfigButtonState();
+    }
+
+    // Méthode pour mettre à jour les participants en cours de partie
+    updateParticipants(participants) {
+        const oldCount = this.persons.length;
+        
+        // Si aucun participant actif, masquer tous les personnages
+        if (participants.length === 0) {
+            this.persons.forEach(person => {
+                this.scene.scene.remove(person.group);
+            });
+            this.persons = [];
+            this.updateConfigButtonState();
+            return;
+        }
+        
+        // Mise à jour intelligente : ne recréer que si nécessaire
+        if (this.shouldRecreatePersons(participants)) {
+            this.createPersons(participants);
+            
+            // Si on a moins de participants qu'avant, réinitialiser le jeu
+            if (participants.length < oldCount) {
+                this.resetGame();
+            }
+        } else {
+            // Mise à jour individuelle des participants existants
+            this.updateExistingPersons(participants);
+        }
+    }
+    
+    // Vérifie si on doit recréer tous les personnages
+    shouldRecreatePersons(newParticipants) {
+        if (newParticipants.length !== this.persons.length) {
+            return true;
+        }
+        
+        // Vérifier si les noms ou les photos ont changé
+        for (let i = 0; i < newParticipants.length; i++) {
+            const newP = newParticipants[i];
+            const oldP = this.persons[i];
+            
+            if (!oldP || newP.name !== oldP.name || newP.faceUrl !== oldP.faceUrl) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    // Met à jour les personnages existants sans les recréer
+    updateExistingPersons(participants) {
+        // Mettre à jour les noms des personnages existants
+        for (let i = 0; i < Math.min(participants.length, this.persons.length); i++) {
+            const participant = participants[i];
+            const person = this.persons[i];
+            
+            if (person && participant.name !== person.group.userData.name) {
+                person.group.userData.name = participant.name;
+            }
+            
+            // Mettre à jour la face si elle a changé
+            if (person && participant.faceUrl !== person.faceUrl) {
+                person.updateFace(participant.faceUrl);
+            }
+        }
+    }
+
+
+
+    // Méthode pour mettre à jour l'état visuel du bouton de configuration
+    updateConfigButtonState() {
+        const configButton = document.getElementById('config-button');
+        if (configButton) {
+            if (this.persons.length > 0) {
+                configButton.classList.add('game-active');
+            } else {
+                configButton.classList.remove('game-active');
+            }
         }
     }
 

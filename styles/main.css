@@ -12,8 +12,152 @@ body {
     z-index: 1; 
     font-family: Arial; 
 }
-#info { position: absolute; top: 10px; left: 10px; color: #fff; z-index: 1; font-family: Arial; }
-#setup-form {
+
+/* Bouton de configuration */
+.config-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 16px;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.config-button.game-active {
+    background: rgba(255, 193, 7, 0.9);
+    color: #333;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.config-button:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Overlay pour l'offcanvas */
+.offcanvas-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.offcanvas-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Panneau offcanvas - styles maintenant dans #setup-form.offcanvas-panel */
+
+.offcanvas-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    background: #f8f9fa;
+}
+
+.offcanvas-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.close-button:hover {
+    background: #e9ecef;
+    color: #333;
+}
+
+.offcanvas-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.game-active-message {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    color: #856404;
+    font-size: 14px;
+    display: none;
+}
+
+.message-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.message-icon {
+    font-size: 16px;
+}
+
+.offcanvas-actions {
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.secondary-button {
+    background: #6c757d;
+}
+
+.secondary-button:hover {
+    background: #5a6268;
+}
+
+/* Style pour l'ancien formulaire centré (maintenant masqué) */
+#setup-form.centered {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -25,11 +169,32 @@ body {
     color: #000;
     max-width: 600px;
     width: 90%;
+    display: none;
 }
+
+/* Le panneau offcanvas utilise maintenant la classe offcanvas-panel */
+#setup-form.offcanvas-panel {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 400px;
+    height: 100%;
+    background: white;
+    z-index: 101;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+#setup-form.offcanvas-panel.active {
+    right: 0;
+}
+
 #setup-form.hidden { display: none; }
 #participants-list {
     margin: 10px 0;
-    max-height: 260px;
+    max-height: 400px;
     overflow-y: auto;
 }
 .participant-row {
@@ -37,10 +202,24 @@ body {
     gap: 10px;
     margin: 5px 0;
     align-items: center;
+    padding: 8px;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+.participant-row:hover {
+    background: #e9ecef;
 }
 .participant-row input[type="text"] {
     flex: 1;
-    padding: 5px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.participant-row input[type="text"]:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 .face-thumb {
     width: 42px;
@@ -51,19 +230,45 @@ body {
     border: 1px solid #bbb;
     cursor: pointer;
     flex: 0 0 auto;
+    transition: transform 0.2s ease;
+}
+.face-thumb:hover {
+    transform: scale(1.05);
 }
 .face-input { display: none; }
 button {
-    padding: 8px 16px;
-    background: #4CAF50;
+    padding: 10px 16px;
+    background: #007bff;
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
-    margin: 5px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
 }
 button:hover {
-    background: #45a049;
+    background: #0056b3;
+    transform: translateY(-1px);
+}
+.remove-participant {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+.remove-participant:hover {
+    background: #c82333;
+    transform: scale(1.1);
 }
 #name-display {
     position: absolute;
@@ -75,4 +280,24 @@ button:hover {
     font-size: 24px;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
     z-index: 1;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    #setup-form.offcanvas-panel {
+        width: 100%;
+        right: -100%;
+    }
+    
+    .config-button {
+        top: 10px;
+        right: 10px;
+        padding: 10px 12px;
+        font-size: 12px;
+    }
+    
+    .config-button svg {
+        width: 20px;
+        height: 20px;
+    }
 }

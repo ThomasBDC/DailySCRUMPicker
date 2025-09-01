@@ -250,4 +250,69 @@ export class Person {
         this.velocity.set(0, 0, 0);
         this.isRunning = false;
     }
+
+    updateFace(faceUrl) {
+        if (faceUrl === this.faceUrl) return; // Pas de changement
+        
+        this.faceUrl = faceUrl;
+        
+        // Supprimer l'ancienne face shell si elle existe
+        if (this.faceShell) {
+            this.head.remove(this.faceShell);
+            this.faceShell = null;
+        }
+        
+        // Masquer les yeux par défaut
+        const leftEye = this.group.children.find(child => child.position.x < 0 && child.geometry.type === 'SphereGeometry');
+        const rightEye = this.group.children.find(child => child.position.x > 0 && child.geometry.type === 'SphereGeometry');
+        if (leftEye) leftEye.visible = !faceUrl;
+        if (rightEye) rightEye.visible = !faceUrl;
+        
+        // Afficher la plaque faciale par défaut
+        if (this.facePlate) {
+            this.facePlate.visible = !faceUrl;
+        }
+        
+        // Si une nouvelle URL est fournie, charger la texture
+        if (faceUrl) {
+            const loader = new THREE.TextureLoader();
+            loader.load(faceUrl, (tex) => {
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                tex.wrapT = THREE.ClampToEdgeWrapping;
+
+                const img = tex.image;
+                const aspect = (img && img.width) ? img.height / img.width : 1;
+                this.headYScale = aspect;
+                this.head.scale.set(1, this.headYScale, 1);
+                if (this.facePlate) this.facePlate.scale.set(1, this.headYScale, 1);
+
+                const headRadius = PERSON_RADIUS * 0.45;
+                const phiCenter = Math.PI / 2;
+                const phiLength = Math.PI;
+                const phiStart = phiCenter - phiLength / 2;
+                const thetaBase = Math.PI * 0.55;
+                const thetaExtra = THREE.MathUtils.clamp((aspect - 1) * Math.PI * 0.35, 0, Math.PI * 0.35);
+                const thetaLength = THREE.MathUtils.clamp(thetaBase + thetaExtra, Math.PI * 0.55, Math.PI * 0.9);
+                const thetaStart = Math.PI * 0.1;
+
+                const shellGeom = new THREE.SphereGeometry(headRadius * 1.01, 48, 32, phiStart, phiLength, thetaStart, thetaLength);
+                const shellMat = new THREE.MeshStandardMaterial({
+                    map: tex,
+                    transparent: true,
+                    roughness: 0.6,
+                    metalness: 0.0,
+                    side: THREE.FrontSide
+                });
+                const faceShell = new THREE.Mesh(shellGeom, shellMat);
+                faceShell.position.set(0, 0, 0);
+                this.#setShadow(faceShell);
+                this.head.add(faceShell);
+                this.faceShell = faceShell;
+                
+                // Masquer la plaque faciale
+                if (this.facePlate) this.facePlate.visible = false;
+            });
+        }
+    }
 }
