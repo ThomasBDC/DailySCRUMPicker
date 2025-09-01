@@ -3,8 +3,8 @@ import { Halo } from './halo.js';
 export class Scene {
     constructor() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0a0a12);
-        this.scene.fog = new THREE.Fog(0x0a0a12, 25, 70);
+        this.scene.background = new THREE.Color(0x1a1a2a);
+        this.scene.fog = new THREE.Fog(0x1a1a2a, 25, 70);
         this.setupCamera();
         this.setupLights();
         this.setupSpotlight();
@@ -18,10 +18,10 @@ export class Scene {
     }
 
     setupLights() {
-        const ambient = new THREE.AmbientLight(0xffffff, 0.12);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.4);
         this.scene.add(ambient);
 
-        const dirLight = new THREE.DirectionalLight(0x88aaff, 0.2);
+        const dirLight = new THREE.DirectionalLight(0x88aaff, 0.6);
         dirLight.position.set(-12, 25, -8);
         this.scene.add(dirLight);
     }
