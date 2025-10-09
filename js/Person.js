@@ -20,16 +20,21 @@ export class Person {
 		// Base Y du groupe pour le bounce vertical naturel
 		this._baseY = PERSON_RADIUS;
 		this._stepPhase = 0; // phase de foulée cumulée (évite les artefacts liés à l'horloge)
+		// Cible de vagabondage (wander) pour explorer l'écran
+		this._wanderTarget = new THREE.Vector3();
+		this._wanderTimer = 0;
+		this._wanderInterval = 3.5 + Math.random() * 2.5; // retargets beaucoup moins fréquents
         // Paramètres de locomotion
         this.maxSpeed = 0.10 + Math.random() * 0.08; // vitesse cible plus lente, légère variance
-        this.turnResponsiveness = 7.5; // réactivité de rotation (plus haut = tourne plus vite)
+        this.turnResponsiveness = 4.0; // moins réactif pour éviter les virages trop fréquents
         this.desiredDir = new THREE.Vector3(0, 0, 1); // direction souhaitée (unité)
         this.heading = new THREE.Vector3(0, 0, 1); // direction actuelle lissée (unité)
-        this.jitterStrength = 0.35; // intensité réduite pour éviter le tremblement
+        this.jitterStrength = 0.15; // encore réduit: mouvements plus stables
         this._speedPhase = Math.random() * Math.PI * 2; // phase pour micro-variations de vitesse
         this.lookaheadDist = PERSON_RADIUS * 8; // distance d’anticipation des murs
         this.createBody(color);
         this.setRandomPosition();
+		this.#pickWanderTarget(true);
     }
 
 	#createPastelColor(color) {
@@ -78,35 +83,11 @@ export class Person {
 		);
 		torso.position.set(0, PERSON_RADIUS * 0.28, 0);
 		torso.scale.set(1.25, 1.35, 1.25); // Chunky, doux et volumineux
+		this.torsoBaseScale = torso.scale.clone();
         this.#setShadow(torso);
         this.group.add(torso);
         this.torso = torso;
-
-        // Tête (plus grosse et plus ronde comme Fall Guys)
-		const headRadius = PERSON_RADIUS * 0.6;
-        const head = new THREE.Mesh(
-			new THREE.SphereGeometry(headRadius, 40, 40),
-            standardMat
-        );
-		head.position.set(0, PERSON_RADIUS * 1.08, 0);
-        head.scale.set(1, this.headYScale, 1);
-        this.#setShadow(head);
-        this.group.add(head);
-        this.head = head;
-
-        // Face plate (plus grande et plus ronde comme Fall Guys)
-		const facePlate = new THREE.Mesh(
-			new THREE.CircleGeometry(PERSON_RADIUS * 0.48, 48),
-			accentMat
-		);
-        facePlate.rotation.x = -Math.PI / 2 + 0.001;
-		facePlate.position.set(0, PERSON_RADIUS * 1.08, PERSON_RADIUS * 0.54);
-        facePlate.scale.set(1, this.headYScale, 1);
-        this.#setShadow(facePlate);
-        this.group.add(facePlate);
-        this.facePlate = facePlate;
-
-        // Photo de visage optionnelle (coquille sphérique mappée)
+        // Photo optionnelle directement mappée sur le torse
         if (this.faceUrl) {
             const loader = new THREE.TextureLoader();
             loader.load(this.faceUrl, (tex) => {
@@ -116,50 +97,40 @@ export class Person {
 
                 const img = tex.image;
                 const aspect = (img && img.width) ? img.height / img.width : 1; // H/W
-                // Adapte exactement la hauteur relative de la tête au ratio de l'image
+                // Adapter les proportions du torse à l'image (étirer en Y)
                 this.headYScale = aspect;
-                this.head.scale.set(1, this.headYScale, 1);
-                if (this.facePlate) this.facePlate.scale.set(1, this.headYScale, 1);
+                if (this.torso && this.torsoBaseScale) {
+                    this.torso.scale.set(
+                        this.torsoBaseScale.x,
+                        this.torsoBaseScale.y * this.headYScale,
+                        this.torsoBaseScale.z
+                    );
+                }
 
+                const torsoRadius = PERSON_RADIUS * 0.66;
                 const phiCenter = Math.PI / 2; // face avant +Z
                 const phiLength = Math.PI;     // hémisphère avant
                 const phiStart = phiCenter - phiLength / 2;
-                // Couverture verticale de la coque (étendue de base + légère extension si portrait marqué)
-                const thetaBase = Math.PI * 0.55;
+                const thetaBase = Math.PI * 0.7;
                 const thetaExtra = THREE.MathUtils.clamp((aspect - 1) * Math.PI * 0.35, 0, Math.PI * 0.35);
-                const thetaLength = THREE.MathUtils.clamp(thetaBase + thetaExtra, Math.PI * 0.55, Math.PI * 0.9);
-                const thetaStart = Math.PI * 0.1;
+                const thetaLength = THREE.MathUtils.clamp(thetaBase + thetaExtra, Math.PI * 0.6, Math.PI * 0.95);
+                const thetaStart = Math.PI * 0.05;
 
-                const shellGeom = new THREE.SphereGeometry(headRadius * 1.01, 48, 32, phiStart, phiLength, thetaStart, thetaLength);
+                const shellGeom = new THREE.SphereGeometry(torsoRadius * 1.01, 48, 32, phiStart, phiLength, thetaStart, thetaLength);
                 const shellMat = new THREE.MeshStandardMaterial({
                     map: tex,
                     transparent: true,
-                    roughness: 0.6,
+                    roughness: 0.45,
                     metalness: 0.0,
                     side: THREE.FrontSide
                 });
                 const faceShell = new THREE.Mesh(shellGeom, shellMat);
                 faceShell.position.set(0, 0, 0);
                 this.#setShadow(faceShell);
-                this.head.add(faceShell);
+                this.torso.add(faceShell);
                 this.faceShell = faceShell;
-                // Masque la plaque faciale blanche si photo
-                this.facePlate.visible = false;
             });
         }
-
-        // Yeux (plus gros et plus expressifs comme Fall Guys)
-		const eyeGeom = new THREE.SphereGeometry(PERSON_RADIUS * 0.14, 18, 18);
-        const leftEye = new THREE.Mesh(eyeGeom, blackMat);
-		leftEye.position.set(-PERSON_RADIUS * 0.19, PERSON_RADIUS * 1.12, PERSON_RADIUS * 0.55);
-        const rightEye = new THREE.Mesh(eyeGeom, blackMat);
-		rightEye.position.set(PERSON_RADIUS * 0.19, PERSON_RADIUS * 1.12, PERSON_RADIUS * 0.55);
-        leftEye.visible = !this.faceUrl;
-        rightEye.visible = !this.faceUrl;
-        this.#setShadow(leftEye);
-        this.#setShadow(rightEye);
-        this.group.add(leftEye);
-        this.group.add(rightEye);
 
 		// Bras monobloc (type capsule) plus courts et ronds
 		const makeArmGeom = () => {
@@ -231,7 +202,7 @@ export class Person {
         const dt = Math.min((now - this._lastTime) / 1000, 0.05);
         this._lastTime = now;
 
-        // Mise à jour de la direction souhaitée (peur + évitement murs)
+		// Mise à jour de la direction souhaitée (wander + évitement + peur)
         this.#updateDesiredDirection(dt);
 
         // Tourner progressivement vers la direction souhaitée
@@ -291,18 +262,41 @@ export class Person {
     #updateDesiredDirection(dt) {
         if (!this.isRunning) return;
 
-        // Base: garder la direction actuelle comme cible
-        // Ajouter un jitter aléatoire (peur) dans le plan XZ
+		// Wander: retarget périodique vers une position aléatoire dans l'écran
+		this._wanderTimer -= dt;
+		if (this._wanderTimer <= 0) this.#pickWanderTarget();
+
+		// Base: garder la direction actuelle comme cible
+		// Ajouter un jitter aléatoire (peur) dans le plan XZ
         const jitterVec = new THREE.Vector3((Math.random() - 0.5), 0, (Math.random() - 0.5));
         if (jitterVec.lengthSq() > 0) jitterVec.normalize();
         const fearBoost = 1.0 + this.#wallThreatLevel() * 1.5; // plus proche du mur => plus nerveux
         this.desiredDir.addScaledVector(jitterVec, this.jitterStrength * fearBoost * dt).normalize();
 
+		// Attraction douce vers la cible wander (renforcée)
+		const toTarget = new THREE.Vector3().subVectors(this._wanderTarget, this.group.position);
+		toTarget.y = 0;
+		if (toTarget.lengthSq() > 1e-6) {
+			toTarget.normalize();
+			// Mélange direction actuelle pour persister dans la trajectoire
+			const forwardBias = this.heading.clone().multiplyScalar(0.6);
+			const steer = new THREE.Vector3().addVectors(toTarget, forwardBias).normalize();
+			this.desiredDir.addScaledVector(steer, 2.2 * dt).normalize();
+		}
+
+		// Biais fort vers l'extérieur (repousse le centre)
+		const centerRepulse = this.group.position.clone();
+		centerRepulse.y = 0;
+		if (centerRepulse.lengthSq() > 0.05) {
+			centerRepulse.normalize();
+			this.desiredDir.addScaledVector(centerRepulse, 3.0 * dt).normalize();
+		}
+
         // Évitement anticipé des bords: appliquer une force de répulsion douce
         const avoid = this.#computeWallAvoidance();
         if (avoid.lengthSq() > 0) {
             // Mélanger la direction voulue avec l'évitement
-            this.desiredDir.addScaledVector(avoid.normalize(), 2.2 * dt).normalize();
+            this.desiredDir.addScaledVector(avoid.normalize(), 1.2 * dt).normalize();
         }
 
         // Steering prédictif: regarder un point en avant et corriger avant d'atteindre le mur
@@ -315,8 +309,8 @@ export class Person {
     #computeWallAvoidance() {
         // Calcule un vecteur d'éloignement des murs en fonction de la proximité
         const pos = this.group.position;
-        const half = SCENE_SIZE / 2 - PERSON_RADIUS * 1.8; // marge plus large pour anticiper
-        const margin = PERSON_RADIUS * 6; // on commence à éviter plus tôt
+		const half = SCENE_SIZE / 2 - PERSON_RADIUS * 1.4; // marge un peu moins large pour autoriser l'exploration
+		const margin = PERSON_RADIUS * 4.2; // commence à éviter un peu plus tard
         const force = new THREE.Vector3(0, 0, 0);
 
         // X+
@@ -334,6 +328,25 @@ export class Person {
 
         return force;
     }
+
+	#pickWanderTarget(initial = false) {
+		// Choisit une cible XZ dans les bornes de la scène, favorisant les zones hors centre
+		const half = SCENE_SIZE / 2;
+		const pad = Math.max(1.2, PERSON_RADIUS * 2);
+		// Rayon cible très proche du bord pour favoriser l'exploration des extrémités
+		const r = THREE.MathUtils.lerp(half * 0.80, half * 0.98, Math.random());
+		// Angle biaisé par la direction radiale actuelle (depuis le centre)
+		const pos = this.group?.position || new THREE.Vector3();
+		const baseAng = Math.atan2(pos.z, pos.x);
+		const ang = baseAng + (Math.random() - 0.5) * Math.PI * 0.6; // +/- ~54°
+		const candidate = new THREE.Vector3(Math.cos(ang) * r, 0, Math.sin(ang) * r);
+		candidate.x = THREE.MathUtils.clamp(candidate.x, -half + pad, half - pad);
+		candidate.z = THREE.MathUtils.clamp(candidate.z, -half + pad, half - pad);
+		this._wanderTarget.copy(candidate);
+		// Intervalle de retarget: court au démarrage, puis long
+		this._wanderInterval = initial ? (0.8 + Math.random() * 0.8) : (4.5 + Math.random() * 2.8);
+		this._wanderTimer = this._wanderInterval;
+	}
 
     #wallThreatLevel() {
         // 0..1 en fonction de la proximité maximale aux murs
@@ -448,7 +461,7 @@ export class Person {
 			const legAmp = THREE.MathUtils.lerp(1.2, 2.1, Math.min(speed / this.maxSpeed, 1));
 			const armAmp = THREE.MathUtils.lerp(1.3, 2.0, Math.min(speed / this.maxSpeed, 1));
 			const torsoBobAmp = 0.25; // oscillation du torse très rebondie
-			const headBobAmp = 0.15; // oscillation de la tête très marquée
+			const headBobAmp = 0.0; // pas de tête désormais
 			// Intensité de squish (élasticité) douce
 			const squishIntensity = 0.07;
 
@@ -512,24 +525,7 @@ export class Person {
 				);
 			}
 
-            // Oscillation de la tête très rebondie et expressive
-			if (this.head) {
-				this.head.rotation.y = Math.sin(this._runTime * 0.8) * 0.25;
-				this.head.rotation.z = Math.sin(this._runTime * 0.5) * 0.12;
-				this.head.position.y = PERSON_RADIUS * 1.1 + Math.sin(this._runTime * 0.9) * headBobAmp;
-				// Effet squishy léger sur la tête
-				const squishH = 1 + Math.sin(this._runTime * 1.1 + Math.PI / 6) * (squishIntensity * 0.7);
-				const invH = 1 / Math.sqrt(squishH);
-				if (!this._squishState.initialized) {
-					this._squishState.base.head.copy(this.head.scale);
-					this._squishState.initialized = true;
-				}
-				this.head.scale.set(
-					this._squishState.base.head.x * invH,
-					this._squishState.base.head.y * squishH,
-					this._squishState.base.head.z * invH
-				);
-			}
+			// Plus de tête à animer
 
         } else {
             // Retour doux à la pose neutre avec interpolation plus fluide
@@ -578,16 +574,7 @@ export class Person {
 				}
             }
             
-            // Retour de la tête à la position neutre
-			if (this.head) {
-                this.head.rotation.y = relax(this.head.rotation.y);
-                this.head.rotation.z = relax(this.head.rotation.z);
-                const targetHeadY = PERSON_RADIUS * 1.1;
-                this.head.position.y = this.head.position.y + (targetHeadY - this.head.position.y) * 0.15;
-				if (this._squishState.initialized) {
-					this.head.scale.lerp(this._squishState.base.head, 0.2);
-				}
-            }
+			// Plus de tête à réinitialiser
         }
     }
 
@@ -611,21 +598,10 @@ export class Person {
         
         this.faceUrl = faceUrl;
         
-        // Supprimer l'ancienne face shell si elle existe
+        // Supprimer l'ancienne face shell si elle existe (sur le torse)
         if (this.faceShell) {
-            this.head.remove(this.faceShell);
+            this.torso.remove(this.faceShell);
             this.faceShell = null;
-        }
-        
-        // Masquer les yeux par défaut
-        const leftEye = this.group.children.find(child => child.position.x < 0 && child.geometry.type === 'SphereGeometry');
-        const rightEye = this.group.children.find(child => child.position.x > 0 && child.geometry.type === 'SphereGeometry');
-        if (leftEye) leftEye.visible = !faceUrl;
-        if (rightEye) rightEye.visible = !faceUrl;
-        
-        // Afficher la plaque faciale par défaut
-        if (this.facePlate) {
-            this.facePlate.visible = !faceUrl;
         }
         
         // Si une nouvelle URL est fournie, charger la texture
@@ -639,19 +615,25 @@ export class Person {
                 const img = tex.image;
                 const aspect = (img && img.width) ? img.height / img.width : 1;
                 this.headYScale = aspect;
-                this.head.scale.set(1, this.headYScale, 1);
-                if (this.facePlate) this.facePlate.scale.set(1, this.headYScale, 1);
+                // Adapter le torse en Y selon l'aspect
+                if (this.torso && this.torsoBaseScale) {
+                    this.torso.scale.set(
+                        this.torsoBaseScale.x,
+                        this.torsoBaseScale.y * this.headYScale,
+                        this.torsoBaseScale.z
+                    );
+                }
 
-                const headRadius = PERSON_RADIUS * 0.45;
                 const phiCenter = Math.PI / 2;
                 const phiLength = Math.PI;
                 const phiStart = phiCenter - phiLength / 2;
-                const thetaBase = Math.PI * 0.55;
+                const thetaBase = Math.PI * 0.7;
                 const thetaExtra = THREE.MathUtils.clamp((aspect - 1) * Math.PI * 0.35, 0, Math.PI * 0.35);
-                const thetaLength = THREE.MathUtils.clamp(thetaBase + thetaExtra, Math.PI * 0.55, Math.PI * 0.9);
-                const thetaStart = Math.PI * 0.1;
+                const thetaLength = THREE.MathUtils.clamp(thetaBase + thetaExtra, Math.PI * 0.6, Math.PI * 0.95);
+                const thetaStart = Math.PI * 0.05;
 
-                const shellGeom = new THREE.SphereGeometry(headRadius * 1.01, 48, 32, phiStart, phiLength, thetaStart, thetaLength);
+                const torsoRadius = PERSON_RADIUS * 0.66;
+                const shellGeom = new THREE.SphereGeometry(torsoRadius * 1.01, 48, 32, phiStart, phiLength, thetaStart, thetaLength);
                 const shellMat = new THREE.MeshStandardMaterial({
                     map: tex,
                     transparent: true,
@@ -662,11 +644,8 @@ export class Person {
                 const faceShell = new THREE.Mesh(shellGeom, shellMat);
                 faceShell.position.set(0, 0, 0);
                 this.#setShadow(faceShell);
-                this.head.add(faceShell);
+                this.torso.add(faceShell);
                 this.faceShell = faceShell;
-                
-                // Masquer la plaque faciale
-                if (this.facePlate) this.facePlate.visible = false;
             });
         }
     }
