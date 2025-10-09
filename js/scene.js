@@ -1,4 +1,5 @@
 import { Halo } from './halo.js';
+import { SCENE_SIZE } from './constants.js';
 
 export class Scene {
     constructor() {
@@ -9,6 +10,14 @@ export class Scene {
         this.setupLights();
         this.setupSpotlight();
         this.setupRenderer();
+        // État pour le mouvement de scan du projecteur (hélicoptère)
+        this._scanAngle = Math.random() * Math.PI * 2;
+        this._scanSpeed = 0.35; // rad/s
+        // Rayon d'orbite basé sur la taille de scène, garde le faisceau à l'écran
+        this._scanRadius = Math.max(2, SCENE_SIZE * 0.5 - 2.5);
+        this._wobblePhase = Math.random() * Math.PI * 2;
+        this._scanCenter = new THREE.Vector3(0, 0, 0);
+        this._scanTarget = new THREE.Vector3(0, 0, 0);
     }
 
     setupCamera() {
@@ -89,6 +98,8 @@ export class Scene {
             this.spotlightCeilingY,
             position.z
         );
+        // Mémorise la cible actuelle utilisée (au sol) pour des transitions
+        this._currentSpotTarget = groundPos.clone();
 
         // Met à jour le halo
         if (this.halo) {
@@ -113,6 +124,63 @@ export class Scene {
             const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
             this.spotlightBeam.quaternion.copy(quaternion);
         }
+    }
+
+    // Mouvement du projecteur façon hélicoptère au-dessus des coureurs
+    updateSpotlightScan(dt, persons = []) {
+        if (!this.spotlight || !this.spotlight.visible) return;
+
+        // Centre: barycentre lissé des personnes
+        if (persons.length > 0) {
+            const center = new THREE.Vector3();
+            for (let i = 0; i < persons.length; i++) center.add(persons[i].group.position);
+            center.multiplyScalar(1 / persons.length);
+            this._scanCenter.lerp(center, 0.06);
+        } else {
+            this._scanCenter.lerp(new THREE.Vector3(0, 0, 0), 0.06);
+        }
+
+        // Avancement du scan avec légère oscillation
+        this._scanAngle += this._scanSpeed * dt;
+        this._wobblePhase += 1.5 * dt;
+        const wobbleR = 2.0 + Math.sin(this._wobblePhase * 1.3) * 1.0;
+        const r = this._scanRadius + wobbleR;
+        const offsetX = Math.cos(this._scanAngle) * r + Math.sin(this._wobblePhase) * 1.8;
+        const offsetZ = Math.sin(this._scanAngle) * r + Math.cos(this._wobblePhase * 0.8) * 1.8;
+        let desired = new THREE.Vector3(this._scanCenter.x + offsetX, 0, this._scanCenter.z + offsetZ);
+
+        // Bornage pour garantir que la cible reste dans la zone visible
+        const half = SCENE_SIZE / 2;
+        const pad = 1.2; // petit padding pour éviter le bord
+        desired.x = THREE.MathUtils.clamp(desired.x, -half + pad, half - pad);
+        desired.z = THREE.MathUtils.clamp(desired.z, -half + pad, half - pad);
+
+        // Parfois, attirer le faisceau vers un coureur proche pour l'effet de recherche
+        if (persons.length > 0) {
+            const beat = (performance.now() * 0.001) % 8;
+            if (beat > 2.0 && beat < 2.7) {
+                let best = null, bestD2 = Infinity;
+                for (let i = 0; i < persons.length; i++) {
+                    const p = persons[i].group.position;
+                    const dx = p.x - desired.x;
+                    const dz = p.z - desired.z;
+                    const d2 = dx * dx + dz * dz;
+                    if (d2 < bestD2) { bestD2 = d2; best = p; }
+                }
+                if (best) {
+                    desired.set(best.x, 0, best.z);
+                    // re-borner au cas où un coureur est près du bord
+                    desired.x = THREE.MathUtils.clamp(desired.x, -half + pad, half - pad);
+                    desired.z = THREE.MathUtils.clamp(desired.z, -half + pad, half - pad);
+                }
+            }
+        }
+
+        // Lissage de la cible du faisceau
+        this._scanTarget.lerp(desired, 1 - Math.exp(-5.0 * dt));
+        // En mode scan, masquer le halo (uniquement visible lors du lock sur une personne)
+        if (this.halo) this.halo.setVisible(false);
+        this.updateSpotlight(this._scanTarget);
     }
 
     render() {

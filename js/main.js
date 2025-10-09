@@ -13,6 +13,7 @@ class Game {
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
         this.init();
+        this._lastTick = performance.now();
     }
 
     init() {
@@ -185,16 +186,19 @@ class Game {
     startSpotlightPhase() {
         this.chosenIdx = Math.floor(Math.random() * this.persons.length);
         const chosenPerson = this.persons[this.chosenIdx];
-        
-        this.scene.spotlight.visible = true;
-        if (this.scene.halo) this.scene.halo.setVisible(true);
-        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
-        this.spotlightPhase = true;
-        chosenPerson.group.flyStart = performance.now();
-        // Remise à zéro des rotations pour un flottement propre
-        chosenPerson.group.rotation.set(0, 0, 0);
 
-        // Affiche le prénom sous la personne
+        this.scene.spotlight.visible = true;
+        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
+        // Pas de halo pendant la transition de lock
+        if (this.scene.halo) this.scene.halo.setVisible(false);
+        this.spotlightPhase = true;
+
+        // Configuration transition de lock
+        this._lockStart = performance.now();
+        this._lockDuration = 800; // ms
+        this._locking = true;
+
+        // Affiche le prénom (apparaîtra bien placé à la fin du lock)
         if (this.nameEl) {
             this.nameEl.textContent = chosenPerson.group.userData.name || '';
             this.nameEl.style.display = 'block';
@@ -222,15 +226,43 @@ class Game {
     }
 
     update() {
+        const now = performance.now();
+        const dt = Math.min((now - this._lastTick) / 1000, 0.05);
+        this._lastTick = now;
+
         if (this.running) {
             this.persons.forEach(person => person.update());
+            // Mouvement de projecteur en mode hélicoptère pendant que tout le monde court
+            this.scene.spotlight.visible = true;
+            if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
+            if (this.scene.halo) this.scene.halo.setVisible(false);
+            this.scene.updateSpotlightScan(dt, this.persons);
         }
 
         if (this.spotlightPhase && this.chosenIdx !== null) {
             const chosenPerson = this.persons[this.chosenIdx];
             if (chosenPerson) {
-                this.scene.updateSpotlight(chosenPerson.group.position);
-                this.updateFlyingAnimation(chosenPerson);
+                // Transition de lock: rapprocher progressivement le faisceau de la personne
+                if (this._locking) {
+                    const t = Math.min(1, (performance.now() - this._lockStart) / this._lockDuration);
+                    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+                    const from = this.scene._currentSpotTarget || chosenPerson.group.position;
+                    const to = chosenPerson.group.position;
+                    const target = new THREE.Vector3().copy(from).lerp(to, eased);
+                    if (this.scene.halo) this.scene.halo.setVisible(false);
+                    this.scene.updateSpotlight(target);
+
+                    if (t >= 1) {
+                        // Lock terminé: activer halo et démarrer la montée
+                        if (this.scene.halo) this.scene.halo.setVisible(true);
+                        chosenPerson.group.flyStart = performance.now();
+                        chosenPerson.group.rotation.set(0, 0, 0);
+                        this._locking = false;
+                    }
+                } else {
+                    this.scene.updateSpotlight(chosenPerson.group.position);
+                    this.updateFlyingAnimation(chosenPerson);
+                }
                 // Met à jour la position de l'étiquette
                 this.updateNameLabelPosition();
             }
