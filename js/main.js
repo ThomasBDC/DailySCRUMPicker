@@ -253,9 +253,10 @@ class Game {
                     this.scene.updateSpotlight(target);
 
                     if (t >= 1) {
-                        // Lock terminé: activer halo et démarrer la montée
+                        // Lock terminé: activer halo et démarrer une courte anticipation avant la montée
                         if (this.scene.halo) this.scene.halo.setVisible(true);
-                        chosenPerson.group.flyStart = performance.now();
+                        chosenPerson.group.liftStart = performance.now();
+                        chosenPerson.group.flyStart = null; // sera défini après l'anticipation
                         chosenPerson.group.rotation.set(0, 0, 0);
                         this._locking = false;
                     }
@@ -270,6 +271,32 @@ class Game {
     }
 
     updateFlyingAnimation(person) {
+        // Phase d'anticipation (pré-lift): légère flexion vers le bas avant de s'élever
+        if (person.group.liftStart && !person.group.flyStart) {
+            const elapsedLift = performance.now() - person.group.liftStart;
+            const preLiftDuration = 300; // ms
+            const t = Math.min(1, elapsedLift / preLiftDuration);
+            const easedIn = Math.pow(t, 2); // easeInQuad pour comprimer
+            const easedOut = 1 - Math.pow(1 - t, 2); // easeOutQuad pour release
+            // Petite descente (squat) puis retour à la base
+            const downAmt = 0.25; // unités monde
+            const baseY = PERSON_RADIUS;
+            // Descendre un peu puis remonter sur la fin de l'anticipation
+            const yOffset = (t < 0.5)
+                ? -downAmt * (easedIn * 2) // va vers -downAmt
+                : -downAmt * (1 - (easedOut * 2 - 1)); // remonte à 0
+            person.group.position.y = baseY + yOffset;
+            // Squash/Stretch très léger visuel via rotation X
+            person.group.rotation.x = -0.08 * Math.sin(t * Math.PI);
+            if (t >= 1) {
+                // Début de la montée
+                person.group.flyStart = performance.now();
+                person.group.liftStart = null;
+                // Reset rotation X pour la montée
+                person.group.rotation.x = 0;
+            }
+            return;
+        }
         if (!person.group.flyStart) return;
         
         const elapsed = performance.now() - person.group.flyStart;
