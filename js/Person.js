@@ -9,6 +9,14 @@ export class Person {
         this._lastTime = performance.now();
         this.faceUrl = faceUrl;
         this.headYScale = 1.0;
+        // Paramètres de locomotion
+        this.maxSpeed = 0.18 + Math.random() * 0.12; // vitesse cible, légère variance
+        this.turnResponsiveness = 7.5; // réactivité de rotation (plus haut = tourne plus vite)
+        this.desiredDir = new THREE.Vector3(0, 0, 1); // direction souhaitée (unité)
+        this.heading = new THREE.Vector3(0, 0, 1); // direction actuelle lissée (unité)
+        this.jitterStrength = 0.9; // intensité de micro-perturbation (peur)
+        this._speedPhase = Math.random() * Math.PI * 2; // phase pour micro-variations de vitesse
+        this.lookaheadDist = PERSON_RADIUS * 8; // distance d’anticipation des murs
         this.createBody(color);
         this.setRandomPosition();
     }
@@ -184,8 +192,24 @@ export class Person {
         const dt = Math.min((now - this._lastTime) / 1000, 0.05);
         this._lastTime = now;
 
+        // Mise à jour de la direction souhaitée (peur + évitement murs)
+        this.#updateDesiredDirection(dt);
+
+        // Tourner progressivement vers la direction souhaitée
+        // Lissage exponentiel pour éviter les changements brusques
+        const lerpFactor = 1 - Math.exp(-this.turnResponsiveness * dt);
+        this.heading.lerp(this.desiredDir, lerpFactor).normalize();
+
+        // Légères variations de vitesse pour un comportement nerveux
+        this._speedPhase += dt * (2.5 + Math.random() * 0.5);
+        const speedJitter = 0.92 + Math.sin(this._speedPhase) * 0.06;
+        const targetSpeed = this.maxSpeed * speedJitter;
+
+        // Mettre à jour la vélocité à partir du heading lissé
+        this.velocity.copy(this.heading).multiplyScalar(this.isRunning ? targetSpeed : 0);
+
         // Déplacement
-        this.group.position.add(this.velocity);
+        this.group.position.addScaledVector(this.velocity, 1);
 
         // Rotation 3D du personnage vers sa direction de mouvement
         this.#updateRotation3D(dt);
@@ -193,15 +217,121 @@ export class Person {
         // Animation de course
         this.#updateRunningAnimation(dt);
         
-        // Collision avec les bords
-        if (Math.abs(this.group.position.x) > SCENE_SIZE / 2 - PERSON_RADIUS) {
-            this.velocity.x *= -1;
-            this.group.position.x = Math.sign(this.group.position.x) * (SCENE_SIZE / 2 - PERSON_RADIUS);
+        // Sécurité: clamp si sortie (évite le blocage) sans inversion brutale
+        const half = SCENE_SIZE / 2 - PERSON_RADIUS;
+        if (this.group.position.x > half) { this.group.position.x = half; this.desiredDir.x = Math.min(0, this.desiredDir.x); }
+        if (this.group.position.x < -half) { this.group.position.x = -half; this.desiredDir.x = Math.max(0, this.desiredDir.x); }
+        if (this.group.position.z > half) { this.group.position.z = half; this.desiredDir.z = Math.min(0, this.desiredDir.z); }
+        if (this.group.position.z < -half) { this.group.position.z = -half; this.desiredDir.z = Math.max(0, this.desiredDir.z); }
+    }
+
+    #updateDesiredDirection(dt) {
+        if (!this.isRunning) return;
+
+        // Base: garder la direction actuelle comme cible
+        // Ajouter un jitter aléatoire (peur) dans le plan XZ
+        const jitterVec = new THREE.Vector3((Math.random() - 0.5), 0, (Math.random() - 0.5));
+        if (jitterVec.lengthSq() > 0) jitterVec.normalize();
+        const fearBoost = 1.0 + this.#wallThreatLevel() * 1.5; // plus proche du mur => plus nerveux
+        this.desiredDir.addScaledVector(jitterVec, this.jitterStrength * fearBoost * dt).normalize();
+
+        // Évitement anticipé des bords: appliquer une force de répulsion douce
+        const avoid = this.#computeWallAvoidance();
+        if (avoid.lengthSq() > 0) {
+            // Mélanger la direction voulue avec l'évitement
+            this.desiredDir.addScaledVector(avoid.normalize(), 2.2 * dt).normalize();
         }
-        if (Math.abs(this.group.position.z) > SCENE_SIZE / 2 - PERSON_RADIUS) {
-            this.velocity.z *= -1;
-            this.group.position.z = Math.sign(this.group.position.z) * (SCENE_SIZE / 2 - PERSON_RADIUS);
+
+        // Steering prédictif: regarder un point en avant et corriger avant d'atteindre le mur
+        this.#applyPredictiveWallSteer(dt);
+
+        // Empêcher de rester presque immobile
+        if (this.desiredDir.lengthSq() < 1e-4) this.desiredDir.set(0, 0, 1);
+    }
+
+    #computeWallAvoidance() {
+        // Calcule un vecteur d'éloignement des murs en fonction de la proximité
+        const pos = this.group.position;
+        const half = SCENE_SIZE / 2 - PERSON_RADIUS * 1.8; // marge plus large pour anticiper
+        const margin = PERSON_RADIUS * 6; // on commence à éviter plus tôt
+        const force = new THREE.Vector3(0, 0, 0);
+
+        // X+
+        const distXp = half - pos.x;
+        if (distXp < margin) force.x -= this.#falloff(distXp / margin);
+        // X-
+        const distXn = half + pos.x;
+        if (distXn < margin) force.x += this.#falloff(distXn / margin);
+        // Z+
+        const distZp = half - pos.z;
+        if (distZp < margin) force.z -= this.#falloff(distZp / margin);
+        // Z-
+        const distZn = half + pos.z;
+        if (distZn < margin) force.z += this.#falloff(distZn / margin);
+
+        return force;
+    }
+
+    #wallThreatLevel() {
+        // 0..1 en fonction de la proximité maximale aux murs
+        const pos = this.group.position;
+        const half = SCENE_SIZE / 2 - PERSON_RADIUS * 1.8;
+        const margin = PERSON_RADIUS * 8;
+        const dists = [half - pos.x, half + pos.x, half - pos.z, half + pos.z];
+        const minDist = Math.max(0, Math.min(...dists));
+        const threat = 1 - THREE.MathUtils.clamp(minDist / margin, 0, 1);
+        return threat;
+    }
+
+    #falloff(t) {
+        // courbe non linéaire: plus proche => force plus forte (ease-out quad)
+        const clamped = THREE.MathUtils.clamp(1 - t, 0, 1);
+        return clamped * clamped;
+    }
+
+    #applyPredictiveWallSteer(dt) {
+        const pos = this.group.position.clone();
+        const half = SCENE_SIZE / 2 - PERSON_RADIUS;
+        const lookVec = this.heading.clone().normalize().multiplyScalar(this.lookaheadDist);
+        const pred = pos.add(lookVec);
+
+        const margin = PERSON_RADIUS * 5;
+        const steer = new THREE.Vector3(0, 0, 0);
+        const tangent = new THREE.Vector3(0, 0, 0);
+
+        // Détection proximité sur position prédite
+        if (pred.x > half - margin) {
+            steer.x -= this.#falloff((half - pred.x) / margin);
+            tangent.z = Math.sign(this.desiredDir.z || 1); // glisse le long de Z
+        } else if (pred.x < -half + margin) {
+            steer.x += this.#falloff((pred.x + half) / margin);
+            tangent.z = Math.sign(this.desiredDir.z || 1);
         }
+        if (pred.z > half - margin) {
+            steer.z -= this.#falloff((half - pred.z) / margin);
+            tangent.x = Math.sign(this.desiredDir.x || 1); // glisse le long de X
+        } else if (pred.z < -half + margin) {
+            steer.z += this.#falloff((pred.z + half) / margin);
+            tangent.x = Math.sign(this.desiredDir.x || 1);
+        }
+
+        if (steer.lengthSq() > 0) {
+            // Priorité au dégagement du mur
+            this.desiredDir.addScaledVector(steer.normalize(), 3.0 * dt);
+            // Ajoute une composante tangentielle pour éviter l’arrêt face au mur
+            if (tangent.lengthSq() > 0) {
+                this.desiredDir.addScaledVector(tangent.normalize(), 1.5 * dt);
+            }
+            this.desiredDir.normalize();
+        }
+
+        // Si très proche: supprimer la composante qui pousse vers le mur
+        const nearMargin = PERSON_RADIUS * 2.5;
+        if (this.group.position.x > half - nearMargin && this.desiredDir.x > 0) this.desiredDir.x = 0;
+        if (this.group.position.x < -half + nearMargin && this.desiredDir.x < 0) this.desiredDir.x = 0;
+        if (this.group.position.z > half - nearMargin && this.desiredDir.z > 0) this.desiredDir.z = 0;
+        if (this.group.position.z < -half + nearMargin && this.desiredDir.z < 0) this.desiredDir.z = 0;
+        this.desiredDir.normalize();
     }
 
     #updateRotation3D(dt) {
@@ -378,17 +508,12 @@ export class Person {
     }
 
     startRunning() {
-        // Direction de mouvement plus variée avec des angles plus naturels
+        // Initialiser une direction de déplacement aléatoire
         const angle = Math.random() * Math.PI * 2;
-        const speed = 0.15 + Math.random() * 0.2; // Vitesse variable
-        
-        // Créer un vecteur de vitesse avec une légère variation
-        this.velocity.set(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(speed);
-        
-        // Ajouter une légère variation aléatoire pour plus de naturel
-        this.velocity.x += (Math.random() - 0.5) * 0.03;
-        this.velocity.z += (Math.random() - 0.5) * 0.03;
-        
+        this.desiredDir.set(Math.cos(angle), 0, Math.sin(angle)).normalize();
+        this.heading.copy(this.desiredDir);
+        // amorce de mouvement
+        this.velocity.copy(this.desiredDir).multiplyScalar(this.maxSpeed * 0.6);
         this.isRunning = true;
     }
 
