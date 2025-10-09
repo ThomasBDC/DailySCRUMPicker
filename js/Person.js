@@ -209,22 +209,12 @@ export class Person {
         const moving = this.isRunning && speed > 0.01;
         
         if (moving) {
-            // Calculer l'angle de direction du mouvement
-            const moveAngle = Math.atan2(this.velocity.z, this.velocity.x);
-            
-            // Le personnage doit être face à sa direction de mouvement
-            // Par défaut, le personnage regarde vers +Z (face à la caméra)
-            // Donc quand il va vers +Z, il ne doit pas tourner (angle = 0)
-            // Quand il va vers +X, il doit tourner de 90° vers la droite
-            // Quand il va vers -Z, il doit tourner de 180° (dos à la caméra)
-            // Quand il va vers -X, il doit tourner de -90° vers la gauche
+            // Calculer directement l'angle de direction du mouvement dans le plan XZ
+            // Le modèle fait face à +Z quand rotation.y = 0, donc on utilise atan2(vx, vz)
             const currentRotation = this.group.rotation.y;
-            // Le personnage doit faire face à sa direction de mouvement
-            // L'angle de rotation doit être l'angle de direction du mouvement
-            // Mais il faut ajuster car le modèle est orienté vers +Z par défaut
-            let targetRotation = moveAngle - Math.PI / 2;
+            let targetRotation = Math.atan2(this.velocity.x, this.velocity.z);
             
-            // Ajuster la rotation pour éviter les rotations de 360°
+            // Ajuster la rotation pour éviter les tours complets inutiles
             let angleDiff = targetRotation - currentRotation;
             while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
             while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Robot Module Example</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="styles/main.css">
+		<style>
+			body {
+				color: #222;
+			}
+
+			a {
+				color: #2fa1d6;
+			}
+
+			p {
+				max-width: 600px;
+				margin-left: auto;
+				margin-right: auto;
+				padding: 0 2em;
+			}
+
+			#controls {
+				position: fixed;
+				top: 10px;
+				left: 10px;
+				z-index: 1000;
+				background: rgba(255, 255, 255, 0.9);
+				padding: 10px;
+				border-radius: 5px;
+				border: 1px solid #ccc;
+			}
+
+			#controls button {
+				margin: 5px;
+				padding: 8px 12px;
+				background: #2fa1d6;
+				color: white;
+				border: none;
+				border-radius: 3px;
+				cursor: pointer;
+			}
+
+			#controls button:hover {
+				background: #1f8bb6;
+			}
+
+			#robotCount {
+				font-weight: bold;
+				margin: 10px 0;
+			}
+
+			#info {
+				position: fixed;
+				top: 10px;
+				right: 10px;
+				z-index: 1000;
+				background: rgba(255, 255, 255, 0.9);
+				padding: 10px;
+				border-radius: 5px;
+				border: 1px solid #ccc;
+				max-width: 300px;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div id="info">
+			<h3>Robot Module Example</h3>
+			<p>Utilisation du module robotChar.js pour créer et contrôler des robots.</p>
+			<p>Chaque robot a ses propres contrôles d'animation et d'expression.</p>
+		</div>
+
+		<div id="controls">
+			<div id="robotCount">Robots: 0</div>
+			<button onclick="addRobot()">Add Robot</button>
+			<button onclick="removeRobot()">Remove Robot</button>
+			<button onclick="clearAllRobots()">Clear All</button>
+			<button onclick="createRandomRobots()">Add 3 Random</button>
+			<button onclick="makeRobotsDance()">Make All Dance</button>
+		</div>
+
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+					"three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+				}
+			}
+		</script>
+
+		<script type="module">
+			import * as THREE from 'three';
+			import Stats from 'three/addons/libs/stats.module.js';
+			import { RobotManager, createRobotManager, createRandomRobot } from './js/robotChar.js';
+
+			let container, stats, clock;
+			let camera, scene, renderer;
+			let robotManager;
+
+			init();
+
+			function init() {
+				container = document.createElement('div');
+				document.body.appendChild(container);
+
+				camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.25, 100);
+				camera.position.set(-5, 3, 10);
+				camera.lookAt(0, 2, 0);
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color(0xe0e0e0);
+				scene.fog = new THREE.Fog(0xe0e0e0, 20, 100);
+
+				clock = new THREE.Clock();
+
+				// lights
+				const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 3);
+				hemiLight.position.set(0, 20, 0);
+				scene.add(hemiLight);
+
+				const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+				dirLight.position.set(0, 20, 10);
+				scene.add(dirLight);
+
+				// ground
+				const mesh = new THREE.Mesh(
+					new THREE.PlaneGeometry(2000, 2000),
+					new THREE.MeshPhongMaterial({ color: 0xcbcbcb, depthWrite: false })
+				);
+				mesh.rotation.x = -Math.PI / 2;
+				scene.add(mesh);
+
+				const grid = new THREE.GridHelper(200, 40, 0x000000, 0x000000);
+				grid.material.opacity = 0.2;
+				grid.material.transparent = true;
+				scene.add(grid);
+
+				// Créer le gestionnaire de robots
+				robotManager = createRobotManager(scene);
+				
+				// Charger le template et ajouter un robot initial
+				robotManager.loadRobotTemplate().then(() => {
+					addRobot();
+					updateRobotCount();
+				});
+
+				renderer = new THREE.WebGLRenderer({ antialias: true });
+				renderer.setPixelRatio(window.devicePixelRatio);
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				renderer.setAnimationLoop(animate);
+				container.appendChild(renderer.domElement);
+
+				window.addEventListener('resize', onWindowResize);
+
+				// stats
+				stats = new Stats();
+				container.appendChild(stats.dom);
+			}
+
+			function addRobot() {
+				const robot = robotManager.addRobot();
+				if (robot) {
+					updateRobotCount();
+					console.log(`Robot ${robot.id} créé à la position:`, robot.getPosition());
+				}
+			}
+
+			function removeRobot() {
+				if (robotManager.removeRobot()) {
+					updateRobotCount();
+				}
+			}
+
+			function clearAllRobots() {
+				robotManager.clearAllRobots();
+				updateRobotCount();
+			}
+
+			function createRandomRobots() {
+				for (let i = 0; i < 3; i++) {
+					createRandomRobot(robotManager, -8, 8, -8, 8);
+				}
+				updateRobotCount();
+			}
+
+			function makeRobotsDance() {
+				const robots = robotManager.getAllRobots();
+				robots.forEach(robot => {
+					robot.setState('Dance');
+				});
+			}
+
+			function updateRobotCount() {
+				const countElement = document.getElementById('robotCount');
+				countElement.textContent = `Robots: ${robotManager.getRobotCount()}`;
+			}
+
+			// Rendre les fonctions globales pour les boutons HTML
+			window.addRobot = addRobot;
+			window.removeRobot = removeRobot;
+			window.clearAllRobots = clearAllRobots;
+			window.createRandomRobots = createRandomRobots;
+			window.makeRobotsDance = makeRobotsDance;
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			}
+
+			function animate() {
+				const dt = clock.getDelta();
+
+				// Mettre à jour tous les robots
+				robotManager.update(dt);
+
+				renderer.render(scene, camera);
+				stats.update();
+			}
+
+			// Exemple d'utilisation programmatique
+			setTimeout(() => {
+				// Ajouter un robot avec une position spécifique
+				const position = new THREE.Vector3(5, 0, 5);
+				const robot = robotManager.addRobot(position);
+				if (robot) {
+					// Faire danser ce robot spécifique
+					setTimeout(() => {
+						robot.setState('Dance');
+					}, 2000);
+
+					// Changer son expression
+					setTimeout(() => {
+						robot.setExpression('smile', 1.0);
+					}, 3000);
+				}
+			}, 5000);
+
+		</script>
+	</body>
+</html>

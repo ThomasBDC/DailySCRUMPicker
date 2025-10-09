@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - Multiple Robots with Skinning and Morphing</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="styles/main.css">
+		<style>
+			body {
+				color: #222;
+			}
+
+			a {
+				color: #2fa1d6;
+			}
+
+			p {
+				max-width: 600px;
+				margin-left: auto;
+				margin-right: auto;
+				padding: 0 2em;
+			}
+
+			#controls {
+				position: fixed;
+				top: 10px;
+				left: 10px;
+				z-index: 1000;
+				background: rgba(255, 255, 255, 0.9);
+				padding: 10px;
+				border-radius: 5px;
+				border: 1px solid #ccc;
+			}
+
+			#controls button {
+				margin: 5px;
+				padding: 8px 12px;
+				background: #2fa1d6;
+				color: white;
+				border: none;
+				border-radius: 3px;
+				cursor: pointer;
+			}
+
+			#controls button:hover {
+				background: #1f8bb6;
+			}
+
+			#robotCount {
+				font-weight: bold;
+				margin: 10px 0;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div id="info">
+			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgl - Multiple Robots with Skinning and Morphing<br />
+			<p>
+				The animation system allows clips to be played individually, looped, or crossfaded with other clips. This example shows multiple robots with individual controls for animations and facial expressions.
+			</p>
+			Model by
+			<a href="https://www.patreon.com/quaternius" target="_blank" rel="noopener">Tomás Laulhé</a>,
+			modifications by <a href="https://donmccurdy.com/" target="_blank" rel="noopener">Don McCurdy</a>. CC0.<br />
+		</div>
+
+		<div id="controls">
+			<div id="robotCount">Robots: 0</div>
+			<button onclick="addRobot()">Add Robot</button>
+			<button onclick="removeRobot()">Remove Robot</button>
+			<button onclick="clearAllRobots()">Clear All</button>
+		</div>
+
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+					"three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+				}
+			}
+		</script>
+
+		<script type="module">
+
+			import * as THREE from 'three';
+
+			import Stats from 'three/addons/libs/stats.module.js';
+			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+			let container, stats, clock, gui;
+			let camera, scene, renderer;
+			let robots = [];
+			let robotTemplate = null;
+
+			init();
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 100 );
+				camera.position.set( - 5, 3, 10 );
+				camera.lookAt( 0, 2, 0 );
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0xe0e0e0 );
+				scene.fog = new THREE.Fog( 0xe0e0e0, 20, 100 );
+
+				clock = new THREE.Clock();
+
+				// lights
+
+				const hemiLight = new THREE.HemisphereLight( 0xffffff, 0x8d8d8d, 3 );
+				hemiLight.position.set( 0, 20, 0 );
+				scene.add( hemiLight );
+
+				const dirLight = new THREE.DirectionalLight( 0xffffff, 3 );
+				dirLight.position.set( 0, 20, 10 );
+				scene.add( dirLight );
+
+				// ground
+
+				const mesh = new THREE.Mesh( new THREE.PlaneGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0xcbcbcb, depthWrite: false } ) );
+				mesh.rotation.x = - Math.PI / 2;
+				scene.add( mesh );
+
+				const grid = new THREE.GridHelper( 200, 40, 0x000000, 0x000000 );
+				grid.material.opacity = 0.2;
+				grid.material.transparent = true;
+				scene.add( grid );
+
+				// Load robot template
+				const loader = new GLTFLoader();
+				loader.load( 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb', function ( gltf ) {
+
+					robotTemplate = gltf;
+					
+					// Add initial robot
+					addRobot();
+
+				}, undefined, function ( e ) {
+
+					console.error( e );
+
+				} );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.setAnimationLoop( animate );
+				container.appendChild( renderer.domElement );
+
+				window.addEventListener( 'resize', onWindowResize );
+
+				// stats
+				stats = new Stats();
+				container.appendChild( stats.dom );
+
+			}
+
+			class Robot {
+				constructor(id, template, position) {
+					this.id = id;
+					this.model = template.scene.clone();
+					this.animations = template.animations;
+					this.mixer = new THREE.AnimationMixer(this.model);
+					this.actions = {};
+					this.activeAction = null;
+					this.previousAction = null;
+					this.face = null;
+					this.gui = null;
+					this.api = { state: 'Walking' };
+
+					// Position the robot
+					this.model.position.copy(position);
+					scene.add(this.model);
+
+					// Setup animations
+					this.setupAnimations();
+					this.setupGUI();
+				}
+
+				setupAnimations() {
+					const states = [ 'Idle', 'Walking', 'Running', 'Dance', 'Death', 'Sitting', 'Standing' ];
+					const emotes = [ 'Jump', 'Yes', 'No', 'Wave', 'Punch', 'ThumbsUp' ];
+
+					for (let i = 0; i < this.animations.length; i++) {
+						const clip = this.animations[i];
+						const action = this.mixer.clipAction(clip);
+						this.actions[clip.name] = action;
+
+						if (emotes.indexOf(clip.name) >= 0 || states.indexOf(clip.name) >= 4) {
+							action.clampWhenFinished = true;
+							action.loop = THREE.LoopOnce;
+						}
+					}
+
+					// Start with walking animation
+					this.activeAction = this.actions['Walking'];
+					this.activeAction.play();
+				}
+
+				setupGUI() {
+					this.gui = new GUI();
+					this.gui.title(`Robot ${this.id}`);
+
+					const states = [ 'Idle', 'Walking', 'Running', 'Dance', 'Death', 'Sitting', 'Standing' ];
+					const emotes = [ 'Jump', 'Yes', 'No', 'Wave', 'Punch', 'ThumbsUp' ];
+
+					// States
+					const statesFolder = this.gui.addFolder('States');
+					const clipCtrl = statesFolder.add(this.api, 'state').options(states);
+					clipCtrl.onChange(() => {
+						this.fadeToAction(this.api.state, 0.5);
+					});
+					statesFolder.open();
+
+					// Emotes
+					const emoteFolder = this.gui.addFolder('Emotes');
+					
+					const createEmoteCallback = (name) => {
+						this.api[name] = () => {
+							this.fadeToAction(name, 0.2);
+							this.mixer.addEventListener('finished', this.restoreState.bind(this));
+						};
+						emoteFolder.add(this.api, name);
+					};
+
+					for (let i = 0; i < emotes.length; i++) {
+						createEmoteCallback(emotes[i]);
+					}
+					emoteFolder.open();
+
+					// Expressions
+					this.face = this.model.getObjectByName('Head_4');
+					if (this.face && this.face.morphTargetDictionary) {
+						const expressions = Object.keys(this.face.morphTargetDictionary);
+						const expressionFolder = this.gui.addFolder('Expressions');
+
+						for (let i = 0; i < expressions.length; i++) {
+							expressionFolder.add(this.face.morphTargetInfluences, i, 0, 1, 0.01).name(expressions[i]);
+						}
+						expressionFolder.open();
+					}
+
+					// Position controls
+					const positionFolder = this.gui.addFolder('Position');
+					positionFolder.add(this.model.position, 'x', -10, 10, 0.1).name('X');
+					positionFolder.add(this.model.position, 'y', 0, 5, 0.1).name('Y');
+					positionFolder.add(this.model.position, 'z', -10, 10, 0.1).name('Z');
+					positionFolder.open();
+
+					// Remove button
+					this.gui.add({ remove: () => removeRobotById(this.id) }, 'remove').name('Remove Robot');
+				}
+
+				restoreState() {
+					this.mixer.removeEventListener('finished', this.restoreState.bind(this));
+					this.fadeToAction(this.api.state, 0.2);
+				}
+
+				fadeToAction(name, duration) {
+					this.previousAction = this.activeAction;
+					this.activeAction = this.actions[name];
+
+					if (this.previousAction !== this.activeAction) {
+						this.previousAction.fadeOut(duration);
+					}
+
+					this.activeAction
+						.reset()
+						.setEffectiveTimeScale(1)
+						.setEffectiveWeight(1)
+						.fadeIn(duration)
+						.play();
+				}
+
+				update(dt) {
+					if (this.mixer) {
+						this.mixer.update(dt);
+					}
+				}
+
+				dispose() {
+					if (this.gui) {
+						this.gui.destroy();
+					}
+					if (this.model) {
+						scene.remove(this.model);
+					}
+				}
+			}
+
+			function addRobot() {
+				if (!robotTemplate) return;
+
+				const id = robots.length + 1;
+				const position = new THREE.Vector3(
+					(Math.random() - 0.5) * 10,
+					0,
+					(Math.random() - 0.5) * 10
+				);
+
+				const robot = new Robot(id, robotTemplate, position);
+				robots.push(robot);
+				updateRobotCount();
+			}
+
+			function removeRobot() {
+				if (robots.length > 0) {
+					const robot = robots.pop();
+					robot.dispose();
+					updateRobotCount();
+				}
+			}
+
+			function removeRobotById(id) {
+				const index = robots.findIndex(robot => robot.id === id);
+				if (index !== -1) {
+					const robot = robots.splice(index, 1)[0];
+					robot.dispose();
+					updateRobotCount();
+				}
+			}
+
+			function clearAllRobots() {
+				robots.forEach(robot => robot.dispose());
+				robots = [];
+				updateRobotCount();
+			}
+
+			function updateRobotCount() {
+				const countElement = document.getElementById('robotCount');
+				countElement.textContent = `Robots: ${robots.length}`;
+			}
+
+			// Make functions globally available
+			window.addRobot = addRobot;
+			window.removeRobot = removeRobot;
+			window.clearAllRobots = clearAllRobots;
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			}
+
+			function animate() {
+				const dt = clock.getDelta();
+
+				// Update all robots
+				robots.forEach(robot => robot.update(dt));
+
+				renderer.render(scene, camera);
+				stats.update();
+			}
+
+		</script>
+
+	</body>
+</html>
