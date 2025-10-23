@@ -280,6 +280,62 @@ export class WheelPicker {
     showWinnerModal(winner) {
         console.log('Affichage de la modale pour:', winner.name); // Debug log
 
+        // Lancer les confettis
+        function shoot() {
+            // Paramètres aléatoires pour chaque tir
+            const randomSpread = Math.random() * 100 + 300; // entre 300 et 400
+            const randomStartVelocity = Math.random() * 20 + 20; // entre 20 et 40
+            const randomGravity = Math.random() * 2; // entre 0 et 2
+            const randomTicks = Math.floor(Math.random() * 50 + 75); // entre 75 et 125
+
+            // Liste de couleurs étendue
+            const colors = [
+                "FFE400", "FFBD00", "E89400", "FFCA6C", "FDFFB8", // jaunes
+                "FF5757", "FF7B7B", "FF9E9E", // rouges
+                "4CAF50", "8BC34A", "CDDC39", // verts
+                "2196F3", "03A9F4", "00BCD4", // bleus
+                "9C27B0", "E91E63", "FF4081"  // violets et roses
+            ];
+
+            // Sélection aléatoire de 5 couleurs
+            const randomColors = [];
+            for(let i = 0; i < 5; i++) {
+                randomColors.push(colors[Math.floor(Math.random() * colors.length)]);
+            }
+
+            // Premier tir avec des étoiles
+            confetti({
+                spread: randomSpread,
+                ticks: randomTicks,
+                gravity: randomGravity,
+                decay: 0.94,
+                startVelocity: randomStartVelocity,
+                particleCount: Math.floor(Math.random() * 30 + 30), // entre 30 et 60 particules
+                scalar: Math.random() * 0.8 + 0.8, // entre 0.8 et 1.6
+                shapes: ["star"],
+                colors: randomColors
+            });
+
+            // Deuxième tir avec des cercles
+            confetti({
+                spread: randomSpread - 60,
+                ticks: randomTicks,
+                gravity: randomGravity * 0.8,
+                decay: 0.94,
+                startVelocity: randomStartVelocity * 0.8,
+                particleCount: Math.floor(Math.random() * 15 + 5), // entre 5 et 20 particules
+                scalar: Math.random() * 0.4 + 0.4, // entre 0.4 et 0.8
+                shapes: ["circle"],
+                colors: randomColors
+            });
+        }
+
+        // Lancer plusieurs vagues de confettis avec des délais aléatoires
+        setTimeout(shoot, 0);
+        setTimeout(shoot, Math.random() * 100 + 50);  // entre 50 et 150ms
+        setTimeout(shoot, Math.random() * 150 + 150); // entre 150 et 300ms
+        setTimeout(shoot, Math.random() * 200 + 250); // entre 250 et 450ms
+
         // Supprimer l'ancienne modal si elle existe
         let oldModal = document.getElementById('winner-modal');
         if (oldModal) {
