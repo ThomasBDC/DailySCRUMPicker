@@ -2,10 +2,13 @@ import { ParticipantManager } from './participants.js';
 import { PERSON_RADIUS, SCENE_SIZE, COLORS } from './constants.js';
 import { Person } from './Person.js';
 import { Scene } from './scene.js';
+import { WheelPicker } from './wheel.js';
 
 class Game {
     constructor() {
+        this.currentPicker = '3d';
         this.scene = new Scene();
+        this.wheel = null;
         this.persons = [];
         this.running = false;
         this.spotlightPhase = false;
@@ -14,12 +17,21 @@ class Game {
         this.participantManager.setGameReference(this);
         this.init();
         this._lastTick = performance.now();
+        
+        // Ajouter le gestionnaire pour le changement de type de picker
+        document.getElementById('picker-type').addEventListener('change', (e) => {
+            this.switchPicker(e.target.value);
+        });
     }
 
     init() {
         // Attendre que les participants soient configurés
         window.addEventListener('participantsReady', (event) => {
-            this.createPersons(event.detail);
+            if (this.currentPicker === '3d') {
+                this.createPersons(event.detail);
+            } else if (this.currentPicker === 'wheel' && this.wheel) {
+                this.wheel.setParticipants(event.detail);
+            }
         });
 
         this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
@@ -32,6 +44,31 @@ class Game {
         }
 
         this.animate();
+    }
+
+    switchPicker(type) {
+        if (type === this.currentPicker) return;
+        
+        this.currentPicker = type;
+        
+        // Cacher/montrer les éléments appropriés
+        if (type === 'wheel') {
+            this.scene.renderer.domElement.style.display = 'none';
+            if (!this.wheel) {
+                this.wheel = new WheelPicker(document.body);
+                // Si des participants sont déjà configurés, les ajouter à la roue
+                if (this.participantManager.participants.length > 0) {
+                    this.wheel.setParticipants(this.participantManager.participants);
+                }
+            } else {
+                this.wheel.canvas.style.display = 'block';
+            }
+        } else {
+            if (this.wheel) {
+                this.wheel.canvas.style.display = 'none';
+            }
+            this.scene.renderer.domElement.style.display = 'block';
+        }
     }
 
     createPersons(participants) {

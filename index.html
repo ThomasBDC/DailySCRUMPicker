@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>DailySCRUMPicker 3D</title>
     <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/wheel.css">
+    <link rel="stylesheet" href="styles/modal.css">
 </head>
 <body>
     <div id="info">Configurez les participants puis cliquez sur la scène pour lancer !</div>
@@ -35,6 +37,13 @@
                     </label>
                     <button class="remove-participant">×</button>
                 </div>
+            </div>
+            <div class="picker-type-selector">
+                <label for="picker-type">Type de sélecteur :</label>
+                <select id="picker-type">
+                    <option value="3d">3D (Classique)</option>
+                    <option value="wheel">Roue de la fortune</option>
+                </select>
             </div>
             <div class="offcanvas-actions">
                 <button id="add-participant">Ajouter un participant</button>
