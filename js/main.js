@@ -114,6 +114,20 @@ class Game {
     }
 
     createPersons(participants) {
+        if (this.currentPicker === 'wheel') {
+            if (!this.wheel) {
+                this.wheel = new WheelPicker(document.body);
+            }
+            this.wheel.setParticipants(participants);
+            return;
+        }
+
+        // Mode 3D
+        if (!this.scene) {
+            this.scene = new Scene();
+            this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
+        }
+
         // Nettoyer les personnes existantes
         this.persons.forEach(person => {
             this.scene.scene.remove(person.group);
@@ -135,15 +149,24 @@ class Game {
 
     // Méthode pour réinitialiser complètement le jeu
     resetGame() {
-        // Arrêter toutes les animations en cours
         this.running = false;
-        this.spotlightPhase = false;
         this.chosenIdx = null;
-        
-        // Masquer le spotlight et le halo
-        this.scene.spotlight.visible = false;
-        if (this.scene.halo) this.scene.halo.setVisible(false);
-        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = false;
+
+        if (this.currentPicker === 'wheel') {
+            if (this.wheel) {
+                this.wheel.reset();
+            }
+        } else {
+            // Mode 3D
+            this.spotlightPhase = false;
+            
+            if (this.scene) {
+                // Masquer le spotlight et le halo
+                this.scene.spotlight.visible = false;
+                if (this.scene.halo) this.scene.halo.setVisible(false);
+                if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = false;
+            }
+        }
         
         // Masquer l'étiquette de nom
         if (this.nameEl) {
