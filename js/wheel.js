@@ -46,6 +46,18 @@ export class WheelPicker {
 
     setParticipants(participants) {
         this.participants = participants.filter(p => p.display);
+        // Précharger les images
+        this.participantImages = new Map();
+        this.participants.forEach(participant => {
+            if (participant.faceUrl) {
+                const img = new Image();
+                img.src = participant.faceUrl;
+                img.onload = () => {
+                    this.participantImages.set(participant.faceUrl, img);
+                    this.draw();
+                };
+            }
+        });
         this.draw();
     }
 
@@ -75,35 +87,66 @@ export class WheelPicker {
             this.ctx.lineWidth = 2;
             this.ctx.stroke();
 
-            // Dessiner le nom du participant
-            this.ctx.save();
-            this.ctx.translate(this.centerX, this.centerY);
-            this.ctx.rotate(startAngle + sliceAngle / 2);
-            this.ctx.textAlign = 'right';
-            this.ctx.fillStyle = '#fff';
-            this.ctx.font = '16px Arial';
-            this.ctx.fillText(participant.name, this.radius * 0.85, 0);
-            this.ctx.restore();
-
             // Si le participant a une photo, la dessiner
-            if (participant.faceUrl) {
-                const img = new Image();
-                img.src = participant.faceUrl;
-                img.onload = () => {
-                    const imgSize = 40;
-                    const imgRadius = this.radius * 0.6;
-                    const imgX = this.centerX + Math.cos(startAngle + sliceAngle / 2) * imgRadius - imgSize / 2;
-                    const imgY = this.centerY + Math.sin(startAngle + sliceAngle / 2) * imgRadius - imgSize / 2;
-                    
-                    // Dessiner l'image dans un cercle
-                    this.ctx.save();
-                    this.ctx.beginPath();
-                    this.ctx.arc(imgX + imgSize/2, imgY + imgSize/2, imgSize/2, 0, Math.PI * 2);
-                    this.ctx.closePath();
-                    this.ctx.clip();
-                    this.ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
-                    this.ctx.restore();
-                };
+            if (participant.faceUrl && this.participantImages.has(participant.faceUrl)) {
+                const img = this.participantImages.get(participant.faceUrl);
+                
+                // Calculer la taille maximale possible pour l'image dans le segment
+                const segmentWidth = Math.sin(sliceAngle / 2) * this.radius * 2;
+                const maxRadius = this.radius * 0.4; // Zone utilisable dans le segment
+                const maxImgSize = Math.min(segmentWidth * 0.9, maxRadius * 2); // Prendre le plus petit entre la largeur du segment et la hauteur disponible
+                
+                // Ne pas dépasser la résolution native de l'image
+                const imgSize = Math.min(maxImgSize, Math.max(img.width, img.height));
+                
+                // Positionner l'image au milieu du segment
+                const imgRadius = this.radius * 0.55; // Position radiale à 55% du rayon
+                const imgX = this.centerX + Math.cos(startAngle + sliceAngle / 2) * imgRadius - imgSize / 2;
+                const imgY = this.centerY + Math.sin(startAngle + sliceAngle / 2) * imgRadius - imgSize / 2;
+                
+                this.ctx.save();
+                
+                // Créer un clip path pour le segment
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.centerX, this.centerY);
+                this.ctx.arc(this.centerX, this.centerY, this.radius, startAngle, endAngle);
+                this.ctx.lineTo(this.centerX, this.centerY);
+                this.ctx.closePath();
+                this.ctx.clip();
+                
+                // Créer un second clip pour le cercle de l'image
+                this.ctx.beginPath();
+                this.ctx.arc(imgX + imgSize/2, imgY + imgSize/2, imgSize/2, 0, Math.PI * 2);
+                this.ctx.closePath();
+                this.ctx.clip();
+                
+                // Calculer les dimensions pour conserver le ratio
+                const scale = Math.max(imgSize / img.width, imgSize / img.height);
+                const scaledWidth = img.width * scale;
+                const scaledHeight = img.height * scale;
+                const offsetX = (imgSize - scaledWidth) / 2;
+                const offsetY = (imgSize - scaledHeight) / 2;
+                
+                // Dessiner l'image avec le bon ratio
+                this.ctx.drawImage(
+                    img,
+                    imgX + offsetX,
+                    imgY + offsetY,
+                    scaledWidth,
+                    scaledHeight
+                );
+                
+                this.ctx.restore();
+            } else {
+                // Dessiner le nom du participant seulement s'il n'a pas de photo
+                this.ctx.save();
+                this.ctx.translate(this.centerX, this.centerY);
+                this.ctx.rotate(startAngle + sliceAngle / 2);
+                this.ctx.textAlign = 'right';
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = '16px Arial';
+                this.ctx.fillText(participant.name, this.radius * 0.85, 0);
+                this.ctx.restore();
             }
         });
 
@@ -276,5 +319,16 @@ export class WheelPicker {
     dispose() {
         // Nettoyer les événements et le canvas
         this.container.removeChild(this.canvas);
+    }
+
+    reset() {
+        // Réinitialiser l'état de la roue
+        this.angle = 0;
+        this.spinning = false;
+        this.finalAngle = 0;
+        this.spinSpeed = 0;
+        this.selectedParticipant = null;
+        this.participantImages = new Map();
+        this.draw();
     }
 }
