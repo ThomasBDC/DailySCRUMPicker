@@ -6,15 +6,27 @@ import { WheelPicker } from './wheel.js';
 
 class Game {
     constructor() {
-        this.currentPicker = '3d';
-        this.scene = new Scene();
+        // Clé pour le localStorage
+        this.pickerStorageKey = 'dsp_picker_type';
+        // Charger le type de picker sauvegardé ou utiliser la valeur par défaut
+        this.currentPicker = localStorage.getItem(this.pickerStorageKey) || '3d';
+        
+        // Initialiser les propriétés de base
+        this.scene = null;
         this.wheel = null;
         this.persons = [];
         this.running = false;
         this.spotlightPhase = false;
         this.chosenIdx = null;
+        
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
+        
+        // Initialiser le bon mode dès le départ
+        if (this.currentPicker === '3d') {
+            this.scene = new Scene();
+        }
+        
         this.init();
         this._lastTick = performance.now();
         
@@ -25,6 +37,26 @@ class Game {
     }
 
     init() {
+        // Mettre à jour le select avec le type de picker sauvegardé
+        const pickerSelect = document.getElementById('picker-type');
+        if (pickerSelect) {
+            pickerSelect.value = this.currentPicker;
+        }
+        
+        // Initialiser l'affichage correct au démarrage
+        if (this.currentPicker === 'wheel') {
+            this.wheel = new WheelPicker(document.body);
+            if (this.scene) {
+                this.scene.renderer.domElement.style.display = 'none';
+            }
+        } else if (this.currentPicker === '3d') {
+            if (!this.scene) {
+                this.scene = new Scene();
+            }
+            this.scene.renderer.domElement.style.display = 'block';
+            this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
+        }
+
         // Attendre que les participants soient configurés
         window.addEventListener('participantsReady', (event) => {
             if (this.currentPicker === '3d') {
@@ -33,8 +65,6 @@ class Game {
                 this.wheel.setParticipants(event.detail);
             }
         });
-
-        this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
         
         // Prépare l'étiquette de nom
         this.nameEl = document.getElementById('name-display');
@@ -50,10 +80,18 @@ class Game {
         if (type === this.currentPicker) return;
         
         this.currentPicker = type;
+        // Sauvegarder le choix dans le localStorage
+        try {
+            localStorage.setItem(this.pickerStorageKey, type);
+        } catch (error) {
+            console.warn('Erreur lors de la sauvegarde du type de picker:', error);
+        }
         
         // Cacher/montrer les éléments appropriés
         if (type === 'wheel') {
-            this.scene.renderer.domElement.style.display = 'none';
+            if (this.scene) {
+                this.scene.renderer.domElement.style.display = 'none';
+            }
             if (!this.wheel) {
                 this.wheel = new WheelPicker(document.body);
                 // Si des participants sont déjà configurés, les ajouter à la roue
@@ -64,6 +102,10 @@ class Game {
                 this.wheel.canvas.style.display = 'block';
             }
         } else {
+            if (!this.scene) {
+                this.scene = new Scene();
+                this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
+            }
             if (this.wheel) {
                 this.wheel.canvas.style.display = 'none';
             }
@@ -122,6 +164,19 @@ class Game {
 
     // Méthode pour mettre à jour les participants en cours de partie
     updateParticipants(participants) {
+        if (this.currentPicker === 'wheel') {
+            if (this.wheel) {
+                this.wheel.setParticipants(participants);
+            }
+            return;
+        }
+
+        // Mode 3D
+        if (!this.scene) {
+            this.scene = new Scene();
+            this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
+        }
+
         const oldCount = this.persons.length;
         
         // Si aucun participant actif, masquer tous les personnages
@@ -263,6 +318,8 @@ class Game {
     }
 
     update() {
+        if (!this.scene) return;  // Ne rien faire si la scène n'est pas active
+        
         const now = performance.now();
         const dt = Math.min((now - this._lastTick) / 1000, 0.05);
         this._lastTick = now;
@@ -393,8 +450,10 @@ class Game {
 
     animate() {
         requestAnimationFrame(() => this.animate());
-        this.update();
-        this.scene.render();
+        if (this.currentPicker === '3d' && this.scene) {
+            this.update();
+            this.scene.render();
+        }
     }
 }
 
