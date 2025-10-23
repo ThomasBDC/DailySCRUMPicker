@@ -194,15 +194,27 @@ export class WheelPicker {
 
     spin() {
         this.spinning = true;
-        this.spinSpeed = Math.random() * 0.3 + 0.2; // Vitesse initiale plus rapide
+        this.spinSpeed = Math.random() * 0.3 + 0.3; // Vitesse initiale plus rapide
         const stopSpeed = 0.002; // Vitesse à laquelle on arrête la roue
         let deceleration = 0.99; // Facteur de décélération (plus proche de 1 = décélération plus douce)
         
+        // Durée aléatoire de rotation à pleine vitesse (entre 0.5 et 2 secondes)
+        const fullSpeedDuration = Math.random() * 1500 + 500;
+        const startTime = Date.now();
+        
         const animate = () => {
+            const currentTime = Date.now();
+            const elapsedTime = currentTime - startTime;
+            
             if (this.spinSpeed > stopSpeed) {
                 this.angle += this.spinSpeed;
-                this.spinSpeed *= deceleration;
-                deceleration -= 0.005;
+                
+                // Commencer à décélérer seulement après la durée de pleine vitesse
+                if (elapsedTime > fullSpeedDuration) {
+                    this.spinSpeed *= deceleration;
+                    deceleration -= 0.005;
+                }
+                
                 this.draw();
                 requestAnimationFrame(animate);
             } else {
@@ -283,8 +295,8 @@ export class WheelPicker {
         modal.innerHTML = `
             <div class="modal-content">
                 <h2>Participant sélectionné !</h2>
-                <div class="winner-info">
-                    ${winner.faceUrl ? `<img src="${winner.faceUrl}" alt="${winner.name}" class="winner-photo">` : ''}
+                <div class="winner-info${!winner.faceUrl ? ' no-photo' : ''}">
+                    ${winner.faceUrl && winner.faceUrl !== 'null' ? `<img src="${winner.faceUrl}" alt="${winner.name}" class="winner-photo">` : ''}
                     <h3>${winner.name}</h3>
                 </div>
                 <button class="close-modal">Fermer</button>
