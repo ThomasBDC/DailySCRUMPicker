@@ -259,8 +259,8 @@ export class WheelPicker {
             index: index
         });
 
-        if (remainder < 0.05 || remainder > 0.95) {
-            // On est proche d'une limite entre deux segments (5% de marge)
+        if (remainder < 0.001 || remainder > 0.999) {
+            // On est exactement sur la limite entre deux segments (0.1% de marge)
             const nextIndex = (index + 1) % this.participants.length;
             this.selectedParticipant = {
                 name: `${this.participants[index].name} & ${this.participants[nextIndex].name} (égalité)`,
