@@ -219,13 +219,6 @@ export class WheelPicker {
                 requestAnimationFrame(animate);
             } else {
                 this.spinning = false;
-                // Snap l'angle sur le segment le plus proche, curseur en haut (−π/2)
-                // const sliceAngle = (2 * Math.PI) / this.participants.length;
-                // let adjustedAngle = (this.angle - Math.PI / 2) % (2 * Math.PI);
-                // if (adjustedAngle < 0) adjustedAngle += 2 * Math.PI;
-                // const currentSegment = Math.round(adjustedAngle / sliceAngle);
-                // this.angle = currentSegment * sliceAngle + Math.PI / 2;
-                // this.draw();
                 setTimeout(() => this.selectWinner(), 100);
             }
         };

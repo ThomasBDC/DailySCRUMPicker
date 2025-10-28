@@ -3,9 +3,13 @@ import { PERSON_RADIUS, SCENE_SIZE, COLORS } from './constants.js';
 import { Person } from './Person.js';
 import { Scene } from './scene.js';
 import { WheelPicker } from './wheel.js';
+import { AudioManager } from './audio.js';
 
 class Game {
     constructor() {
+        // Initialiser le gestionnaire audio
+        this.audioManager = new AudioManager();
+        
         // Clé pour le localStorage
         this.pickerStorageKey = 'dsp_picker_type';
         // Charger le type de picker sauvegardé ou utiliser la valeur par défaut
@@ -290,10 +294,17 @@ class Game {
     startRace() {
         this.running = true;
         this.persons.forEach(person => person.startRunning());
-
+        
+        // Démarre la musique de sélection avec fade in
+        this.audioManager.playSelectionMusic();
+        console.log("lamusique");
         setTimeout(() => {
             this.running = false;
             this.persons.forEach(person => person.stopRunning());
+            
+            // Arrête la musique avec fade out
+            this.audioManager.stopSelectionMusic();
+            
             this.startSpotlightPhase();
         }, 2000);
     }
@@ -301,6 +312,9 @@ class Game {
     startSpotlightPhase() {
         this.chosenIdx = Math.floor(Math.random() * this.persons.length);
         const chosenPerson = this.persons[this.chosenIdx];
+
+        // Jouer le son du spotlight
+        this.audioManager.playSpotlightSound();
 
         this.scene.spotlight.visible = true;
         if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
