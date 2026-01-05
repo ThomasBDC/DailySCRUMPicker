@@ -53,6 +53,43 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* Bouton mute */
+.mute-button {
+    position: absolute;
+    top: 10px;
+    right: 180px; /* Positionné à gauche du bouton config */
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.mute-button:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.mute-button.muted {
+    background: rgba(220, 53, 69, 0.9);
+    color: #fff;
+}
+
+.mute-button.muted:hover {
+    background: rgba(220, 53, 69, 1);
+}
+
 /* Overlay pour l'offcanvas */
 .offcanvas-overlay {
     position: fixed;
@@ -297,6 +334,17 @@ button:hover {
     }
     
     .config-button svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .mute-button {
+        top: 10px;
+        right: 140px; /* Ajusté pour mobile */
+        padding: 10px;
+    }
+
+    .mute-button svg {
         width: 20px;
         height: 20px;
     }
