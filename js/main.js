@@ -23,6 +23,13 @@ class Game {
         this.spotlightPhase = false;
         this.chosenIdx = null;
         
+        // Propriétés pour le zoom de caméra
+        this.cameraZoomActive = false;
+        this.cameraOriginalPosition = null;
+        this.cameraOriginalTarget = null;
+        this.cameraZoomStart = null;
+        this.cameraZoomDuration = 1000; // ms pour le zoom in/out
+        
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
         
@@ -357,6 +364,9 @@ class Game {
         if (this.nameEl) {
             this.nameEl.style.display = 'none';
         }
+
+        // Commencer le retour de la caméra
+        this.startCameraReset();
     }
 
     update() {
@@ -403,6 +413,11 @@ class Game {
                 // Met à jour la position de l'étiquette
                 this.updateNameLabelPosition();
             }
+        }
+
+        // Gérer le retour de la caméra si nécessaire
+        if (!this.spotlightPhase && this.cameraZoomActive) {
+            this.resetCameraZoom();
         }
     }
 
@@ -456,6 +471,82 @@ class Game {
         person.group.rotation.x = Math.sin(floatT * 1.7) * 0.12;
         person.group.rotation.z = Math.cos(floatT * 1.3) * 0.08;
         person.group.rotation.y = floatT * 0.5; // ~0.5 rad/s
+
+        // Zoom de la caméra sur la personne qui flotte
+        this.updateCameraZoom(person);
+    }
+
+    updateCameraZoom(person) {
+        if (!this.scene || this.chosenIdx === null) return;
+
+        const chosenPerson = this.persons[this.chosenIdx];
+        if (!chosenPerson) return;
+
+        // Position cible de zoom : légèrement au-dessus et derrière la personne
+        const zoomTarget = chosenPerson.group.position.clone();
+        zoomTarget.y += PERSON_RADIUS * 1.5; // Au-dessus de la personne
+        zoomTarget.z += 3; // Légèrement derrière
+
+        // Position de zoom : plus proche de la personne
+        const zoomPosition = chosenPerson.group.position.clone();
+        zoomPosition.y += PERSON_RADIUS * 2.5; // Au-dessus
+        zoomPosition.z += 8; // Devant la personne
+        zoomPosition.x += 2; // Légèrement décalé sur le côté
+
+        if (!this.cameraZoomActive) {
+            // Sauvegarder la position et cible originale
+            this.cameraOriginalPosition = this.scene.camera.position.clone();
+            this.cameraOriginalTarget = new THREE.Vector3(0, 0, 0); // La caméra regarde vers l'origine
+            this.cameraZoomStart = performance.now();
+            this.cameraZoomActive = true;
+        }
+
+        const elapsed = performance.now() - this.cameraZoomStart;
+        const t = Math.min(1, elapsed / this.cameraZoomDuration);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+
+        // Interpoler la position de la caméra
+        this.scene.camera.position.lerpVectors(this.cameraOriginalPosition, zoomPosition, eased);
+        
+        // Interpoler la cible de la caméra
+        const currentTarget = new THREE.Vector3();
+        currentTarget.lerpVectors(this.cameraOriginalTarget, zoomTarget, eased);
+        this.scene.camera.lookAt(currentTarget);
+    }
+
+    resetCameraZoom() {
+        if (!this.cameraZoomActive || !this.scene || !this.cameraOriginalPosition) return;
+
+        const elapsed = performance.now() - this.cameraZoomStart;
+        const t = Math.min(1, elapsed / this.cameraZoomDuration);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+
+        // Position actuelle de la caméra
+        const currentPosition = this.scene.camera.position.clone();
+        
+        // Calculer la cible actuelle (point que la caméra regarde)
+        const currentDirection = new THREE.Vector3();
+        this.scene.camera.getWorldDirection(currentDirection);
+        const currentTarget = new THREE.Vector3().copy(this.scene.camera.position).add(currentDirection);
+
+        // Interpoler vers la position originale
+        this.scene.camera.position.lerpVectors(currentPosition, this.cameraOriginalPosition, eased);
+        this.scene.camera.lookAt(
+            new THREE.Vector3().lerpVectors(currentTarget, this.cameraOriginalTarget, eased)
+        );
+
+        // Si le retour est terminé, désactiver
+        if (t >= 1) {
+            this.cameraZoomActive = false;
+            this.cameraOriginalPosition = null;
+            this.cameraOriginalTarget = null;
+        }
+    }
+
+    startCameraReset() {
+        if (!this.cameraZoomActive) return;
+        // Marquer le début du retour
+        this.cameraZoomStart = performance.now();
     }
 
     // Positionne #name-display sous la personne sélectionnée
