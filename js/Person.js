@@ -517,6 +517,7 @@ export class Person {
 				const inv = 1 / Math.sqrt(squish);
 				if (!this._squishState.initialized) {
 					this._squishState.base.torso.copy(this.torso.scale);
+					this._squishState.initialized = true;
 				}
 				this.torso.scale.set(
 					this._squishState.base.torso.x * inv,
@@ -603,6 +604,9 @@ export class Person {
             this.torso.remove(this.faceShell);
             this.faceShell = null;
         }
+        
+        // Reset squish state when face changes
+        this._squishState.initialized = false;
         
         // Si une nouvelle URL est fournie, charger la texture
         if (faceUrl) {
