@@ -12,6 +12,7 @@ export const AUDIO_FILES = {
         'spotlight/2.wav',
         'spotlight/3.wav',
         'spotlight/4.wav',
-        'spotlight/5.wav'
+        'spotlight/5.wav',
+        'spotlight/6.mp3'
     ]
 };
