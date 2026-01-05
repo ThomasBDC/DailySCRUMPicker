@@ -197,7 +197,7 @@ export class Person {
         );
     }
 
-    update() {
+    update(allPersons = []) {
         const now = performance.now();
         const dt = Math.min((now - this._lastTime) / 1000, 0.05);
         this._lastTime = now;
@@ -224,6 +224,9 @@ export class Person {
 		// Déplacement (XZ) avec conservation du Y pour appliquer le bounce
 		this.group.position.x += this.velocity.x;
 		this.group.position.z += this.velocity.z;
+
+        // Collision avec les autres personnages
+        this.#resolveCollisions(allPersons);
 
         // Rotation 3D du personnage vers sa direction de mouvement
         this.#updateRotation3D(dt);
@@ -257,6 +260,27 @@ export class Person {
         if (this.group.position.x < -half) { this.group.position.x = -half; this.desiredDir.x = Math.max(0, this.desiredDir.x); }
         if (this.group.position.z > half) { this.group.position.z = half; this.desiredDir.z = Math.min(0, this.desiredDir.z); }
         if (this.group.position.z < -half) { this.group.position.z = -half; this.desiredDir.z = Math.max(0, this.desiredDir.z); }
+    }
+
+    #resolveCollisions(allPersons) {
+        const minDistance = PERSON_RADIUS * 2; // Distance minimale entre centres
+        for (const other of allPersons) {
+            if (other === this) continue;
+            const dx = this.group.position.x - other.group.position.x;
+            const dz = this.group.position.z - other.group.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            if (distance < minDistance && distance > 0) {
+                // Calculer la séparation nécessaire
+                const overlap = minDistance - distance;
+                const separationX = (dx / distance) * overlap * 0.5;
+                const separationZ = (dz / distance) * overlap * 0.5;
+                // Pousser les deux personnages
+                this.group.position.x += separationX;
+                this.group.position.z += separationZ;
+                other.group.position.x -= separationX;
+                other.group.position.z -= separationZ;
+            }
+        }
     }
 
     #updateDesiredDirection(dt) {

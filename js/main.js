@@ -377,7 +377,7 @@ class Game {
         this._lastTick = now;
 
         if (this.running) {
-            this.persons.forEach(person => person.update());
+            this.persons.forEach(person => person.update(this.persons));
             // Mouvement de projecteur en mode hélicoptère pendant que tout le monde court
             this.scene.spotlight.visible = true;
             if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
@@ -456,14 +456,14 @@ class Game {
             const t = elapsed / riseDurationMs;
             // Lissage pour une montée douce (easeOutCubic)
             const eased = 1 - Math.pow(1 - t, 3);
-            person.group.position.y = PERSON_RADIUS + 2 * eased;
+            person.group.position.y = PERSON_RADIUS + 4 * eased;
             // Pas de rotation pendant la montée
             return;
         }
 
         // Flottement 3D après la montée
         const floatT = (elapsed - riseDurationMs) / 1000;
-        const baseY = PERSON_RADIUS + 2;
+        const baseY = PERSON_RADIUS + 4;
         const bob = Math.sin(floatT * 2.2) * 0.3; // amplitude 0.3u
         person.group.position.y = baseY + bob;
 
