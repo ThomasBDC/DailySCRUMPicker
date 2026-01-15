@@ -25,6 +25,13 @@ class Game {
         this.spotlightPhase = false;
         this.chosenIdx = null;
         
+        // Propriétés pour le zoom de caméra
+        this.cameraZoomActive = false;
+        this.cameraOriginalPosition = null;
+        this.cameraOriginalTarget = null;
+        this.cameraZoomStart = null;
+        this.cameraZoomDuration = 1000; // ms pour le zoom in/out
+        
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
         
@@ -41,6 +48,11 @@ class Game {
         // Ajouter le gestionnaire pour le changement de type de picker
         document.getElementById('picker-type').addEventListener('change', (e) => {
             this.switchPicker(e.target.value);
+        });
+
+        // Ajouter le gestionnaire pour le bouton mute
+        document.getElementById('mute-button').addEventListener('click', () => {
+            this.toggleMute();
         });
     }
 
@@ -434,6 +446,9 @@ class Game {
         if (this.nameEl) {
             this.nameEl.style.display = 'none';
         }
+
+        // Commencer le retour de la caméra
+        this.startCameraReset();
     }
 
     update() {
@@ -444,7 +459,7 @@ class Game {
         this._lastTick = now;
 
         if (this.running) {
-            this.persons.forEach(person => person.update());
+            this.persons.forEach(person => person.update(this.persons));
             // Mouvement de projecteur en mode hélicoptère pendant que tout le monde court
             this.scene.spotlight.visible = true;
             if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
@@ -480,6 +495,11 @@ class Game {
                 // Met à jour la position de l'étiquette
                 this.updateNameLabelPosition();
             }
+        }
+
+        // Gérer le retour de la caméra si nécessaire
+        if (!this.spotlightPhase && this.cameraZoomActive) {
+            this.resetCameraZoom();
         }
     }
 
@@ -518,14 +538,14 @@ class Game {
             const t = elapsed / riseDurationMs;
             // Lissage pour une montée douce (easeOutCubic)
             const eased = 1 - Math.pow(1 - t, 3);
-            person.group.position.y = PERSON_RADIUS + 2 * eased;
+            person.group.position.y = PERSON_RADIUS + 4 * eased;
             // Pas de rotation pendant la montée
             return;
         }
 
         // Flottement 3D après la montée
         const floatT = (elapsed - riseDurationMs) / 1000;
-        const baseY = PERSON_RADIUS + 2;
+        const baseY = PERSON_RADIUS + 4;
         const bob = Math.sin(floatT * 2.2) * 0.3; // amplitude 0.3u
         person.group.position.y = baseY + bob;
 
@@ -533,6 +553,82 @@ class Game {
         person.group.rotation.x = Math.sin(floatT * 1.7) * 0.12;
         person.group.rotation.z = Math.cos(floatT * 1.3) * 0.08;
         person.group.rotation.y = floatT * 0.5; // ~0.5 rad/s
+
+        // Zoom de la caméra sur la personne qui flotte
+        this.updateCameraZoom(person);
+    }
+
+    updateCameraZoom(person) {
+        if (!this.scene || this.chosenIdx === null) return;
+
+        const chosenPerson = this.persons[this.chosenIdx];
+        if (!chosenPerson) return;
+
+        // Position cible de zoom : légèrement au-dessus et derrière la personne
+        const zoomTarget = chosenPerson.group.position.clone();
+        zoomTarget.y += PERSON_RADIUS * 1.5; // Au-dessus de la personne
+        zoomTarget.z += 3; // Légèrement derrière
+
+        // Position de zoom : plus proche de la personne
+        const zoomPosition = chosenPerson.group.position.clone();
+        zoomPosition.y += PERSON_RADIUS * 2.5; // Au-dessus
+        zoomPosition.z += 8; // Devant la personne
+        zoomPosition.x += 2; // Légèrement décalé sur le côté
+
+        if (!this.cameraZoomActive) {
+            // Sauvegarder la position et cible originale
+            this.cameraOriginalPosition = this.scene.camera.position.clone();
+            this.cameraOriginalTarget = new THREE.Vector3(0, 0, 0); // La caméra regarde vers l'origine
+            this.cameraZoomStart = performance.now();
+            this.cameraZoomActive = true;
+        }
+
+        const elapsed = performance.now() - this.cameraZoomStart;
+        const t = Math.min(1, elapsed / this.cameraZoomDuration);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+
+        // Interpoler la position de la caméra
+        this.scene.camera.position.lerpVectors(this.cameraOriginalPosition, zoomPosition, eased);
+        
+        // Interpoler la cible de la caméra
+        const currentTarget = new THREE.Vector3();
+        currentTarget.lerpVectors(this.cameraOriginalTarget, zoomTarget, eased);
+        this.scene.camera.lookAt(currentTarget);
+    }
+
+    resetCameraZoom() {
+        if (!this.cameraZoomActive || !this.scene || !this.cameraOriginalPosition) return;
+
+        const elapsed = performance.now() - this.cameraZoomStart;
+        const t = Math.min(1, elapsed / this.cameraZoomDuration);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+
+        // Position actuelle de la caméra
+        const currentPosition = this.scene.camera.position.clone();
+        
+        // Calculer la cible actuelle (point que la caméra regarde)
+        const currentDirection = new THREE.Vector3();
+        this.scene.camera.getWorldDirection(currentDirection);
+        const currentTarget = new THREE.Vector3().copy(this.scene.camera.position).add(currentDirection);
+
+        // Interpoler vers la position originale
+        this.scene.camera.position.lerpVectors(currentPosition, this.cameraOriginalPosition, eased);
+        this.scene.camera.lookAt(
+            new THREE.Vector3().lerpVectors(currentTarget, this.cameraOriginalTarget, eased)
+        );
+
+        // Si le retour est terminé, désactiver
+        if (t >= 1) {
+            this.cameraZoomActive = false;
+            this.cameraOriginalPosition = null;
+            this.cameraOriginalTarget = null;
+        }
+    }
+
+    startCameraReset() {
+        if (!this.cameraZoomActive) return;
+        // Marquer le début du retour
+        this.cameraZoomStart = performance.now();
     }
 
     // Positionne #name-display sous la personne sélectionnée
@@ -565,6 +661,20 @@ class Game {
         this.nameEl.style.top = `${y}px`;
         this.nameEl.style.bottom = 'auto';
         this.nameEl.style.transform = 'translate(-50%, 0)';
+    }
+
+    toggleMute() {
+        const isMuted = this.audioManager.toggleMute();
+        const muteButton = document.getElementById('mute-button');
+        const muteIcon = document.getElementById('mute-icon');
+        
+        if (isMuted) {
+            muteButton.classList.add('muted');
+            muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
+        } else {
+            muteButton.classList.remove('muted');
+            muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+        }
     }
 
     animate() {

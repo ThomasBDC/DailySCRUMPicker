@@ -13,6 +13,9 @@ export class AudioManager {
         this.selectionMusic = new Audio();
         this.spotlightSound = new Audio();
         
+        // État du mute
+        this.isMuted = false;
+        
         // Configurer la musique de sélection
         this.selectionMusic.volume = 0;
         this.selectionMusic.loop = true;
@@ -50,6 +53,8 @@ export class AudioManager {
     }
 
     playSelectionMusic() {
+        if (this.isMuted) return;
+        
         const randomSound = this.getRandomSound(this.selectionSounds);
         if (randomSound) {
             // Utiliser le son préchargé
@@ -76,6 +81,8 @@ export class AudioManager {
     }
 
     playSpotlightSound() {
+        if (this.isMuted) return;
+        
         const randomSound = this.getRandomSound(this.spotlightSounds);
         if (randomSound) {
             // Utiliser le son préchargé
@@ -133,5 +140,27 @@ export class AudioManager {
             
             requestAnimationFrame(fade);
         });
+    }
+
+    mute() {
+        this.isMuted = true;
+        this.selectionMusic.volume = 0;
+        this.spotlightSound.volume = 0;
+    }
+
+    unmute() {
+        this.isMuted = false;
+        // Restaurer les volumes par défaut
+        this.spotlightSound.volume = 1;
+        // Le volume de selectionMusic sera géré par fadeIn quand nécessaire
+    }
+
+    toggleMute() {
+        if (this.isMuted) {
+            this.unmute();
+        } else {
+            this.mute();
+        }
+        return this.isMuted;
     }
 }
