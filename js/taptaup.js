@@ -15,6 +15,8 @@ export class TapTaupePicker {
         this.chosenIdx = null;
         this.zoomPhase = false;
         this.nameDisplay = null;
+        this.hammerInitialPosition = null;
+        this.hammerInitialRotation = null;
         
         // Configuration de la grille de trous
         this.gridCols = 4;
@@ -48,9 +50,10 @@ export class TapTaupePicker {
     
     setupCamera() {
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        this.camera.position.set(0, 8, 12);
+        this.camera.position.set(0, 8, 9);
         this.camera.lookAt(0, 0, 0);
         this.originalCameraPos = this.camera.position.clone();
+        this.scene.add(this.camera);
     }
     
     setupLights() {
@@ -143,26 +146,29 @@ export class TapTaupePicker {
     createHammer() {
         const hammerGroup = new THREE.Group();
         
-        // Manche du marteau
-        const handleGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.5, 16);
+        // Manche du marteau (agrandi)
+        const handleGeometry = new THREE.CylinderGeometry(0.15, 0.15, 3.0, 16);
         const handleMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.7 });
         const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-        handle.position.y = 0.75;
+        handle.position.y = 1.5;
         handle.castShadow = true;
         hammerGroup.add(handle);
         
-        // Tête du marteau
-        const headGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.5);
+        // Tête du marteau (agrandie)
+        const headGeometry = new THREE.BoxGeometry(0.8, 0.6, 1.0);
         const headMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.8 });
         const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.y = 1.6;
+        head.position.y = 3.2;
         head.castShadow = true;
         hammerGroup.add(head);
         
         this.hammer = hammerGroup;
-        this.hammer.position.set(0, 5, 0);
-        this.hammer.visible = false;
-        this.scene.add(this.hammer);
+        this.hammer.position.set(2.5, -2.2, -3);
+        this.hammer.rotation.set(0.1, -0.4, 0.1);
+        this.hammer.visible = true;
+        this.hammerInitialPosition = this.hammer.position.clone();
+        this.hammerInitialRotation = this.hammer.rotation.clone();
+        this.camera.add(this.hammer);
     }
     
     setParticipants(participants) {
@@ -348,40 +354,35 @@ export class TapTaupePicker {
     
     hammerDown() {
         if (!this.selectedPerson) return;
-        
-        const targetPos = this.selectedPerson.group.position.clone();
-        targetPos.y += PERSON_RADIUS * 0.5;
-        
-        // Positionner le marteau au-dessus de la cible
-        this.hammer.position.set(targetPos.x, targetPos.y + 3, targetPos.z);
+
+        // Animation "vue FPS" (style Minecraft): le marteau reste attaché à la caméra,
+        // on ne fait qu'une animation de swing.
         this.hammer.visible = true;
-        this.hammer.rotation.z = 0;
-        
-        // Animation du marteau qui descend
-        const startY = this.hammer.position.y;
-        const endY = targetPos.y;
-        const duration = 400;
+
+        const startRotationX = -Math.PI / 2;
+        const endRotationX = 0;
+        const baseRotation = this.hammer.rotation.clone();
+        this.hammer.rotation.x = startRotationX;
+
+        const duration = 300;
         const startTime = performance.now();
-        
+
         const animate = () => {
             const elapsed = performance.now() - startTime;
             const t = Math.min(elapsed / duration, 1);
-            
-            // Rotation du marteau pendant la descente
-            this.hammer.rotation.z = Math.sin(t * Math.PI) * 0.3;
-            
-            // Descente avec acceleration
-            const eased = t * t; // ease in quad
-            this.hammer.position.y = startY + (endY - startY) * eased;
-            
+
+            const eased = t * t;
+            this.hammer.rotation.x = startRotationX + (endRotationX - startRotationX) * eased;
+            this.hammer.rotation.y = baseRotation.y;
+            this.hammer.rotation.z = baseRotation.z;
+
             if (t < 1) {
                 requestAnimationFrame(animate);
             } else {
-                // Impact !
                 this.onHammerHit();
             }
         };
-        
+
         animate();
     }
     
@@ -414,10 +415,16 @@ export class TapTaupePicker {
             animate();
         }
         
-        // Remonter le marteau légèrement
+        // Remonter le marteau légèrement (retour à la position levée)
         setTimeout(() => {
-            this.hammer.position.y += 0.5;
-            this.hammer.rotation.z = 0;
+            if (this.hammerInitialPosition) {
+                this.hammer.position.copy(this.hammerInitialPosition);
+            }
+            if (this.hammerInitialRotation) {
+                this.hammer.rotation.copy(this.hammerInitialRotation);
+            } else {
+                this.hammer.rotation.x = -Math.PI / 2;
+            }
         }, 100);
         
         // Zoom vers le personnage
@@ -491,7 +498,7 @@ export class TapTaupePicker {
         this.chosenIdx = null;
         this.selectedPerson = null;
         this.zoomPhase = false;
-        this.hammer.visible = false;
+        this.hammer.visible = true;
         
         // Remettre la caméra à sa position originale
         const duration = 500;
@@ -526,7 +533,7 @@ export class TapTaupePicker {
         this.zoomPhase = false;
         this.chosenIdx = null;
         this.selectedPerson = null;
-        this.hammer.visible = false;
+        this.hammer.visible = true;
         
         // Remettre la caméra à sa position originale
         this.camera.position.copy(this.originalCameraPos);
@@ -568,7 +575,7 @@ export class TapTaupePicker {
             this.scene.remove(person.group);
         });
         this.scene.remove(this.platform);
-        this.scene.remove(this.hammer);
+        this.camera.remove(this.hammer);
         this.holes.forEach(hole => {
             if (hole.cylinder) {
                 this.scene.remove(hole.cylinder);
