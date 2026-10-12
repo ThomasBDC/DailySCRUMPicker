@@ -746,10 +746,18 @@ select {
     text-align: center;
 }
 
+.config-transfer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
 .import-export-actions {
     display: flex;
     gap: 8px;
-    margin-top: 4px;
 }
 
 .import-export-actions .btn {

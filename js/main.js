@@ -6,6 +6,7 @@ import { WheelPicker } from './wheel.js';
 import { TapTaupePicker } from './taptaup.js';
 import { PackOpeningPicker } from './pack.js';
 import { AudioManager } from './audio.js';
+import { setupSettingsTransfer, PICKER_TYPES } from './settings.js';
 
 class Game {
     constructor() {
@@ -15,7 +16,8 @@ class Game {
         // Clé pour le localStorage
         this.pickerStorageKey = 'dsp_picker_type';
         // Charger le type de picker sauvegardé ou utiliser la valeur par défaut
-        this.currentPicker = localStorage.getItem(this.pickerStorageKey) || '3d';
+        const savedPicker = localStorage.getItem(this.pickerStorageKey);
+        this.currentPicker = PICKER_TYPES.includes(savedPicker) ? savedPicker : '3d';
         
         // Initialiser les propriétés de base
         this.scene = null;
@@ -36,6 +38,9 @@ class Game {
         
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
+
+        // Export / import de toute la configuration
+        setupSettingsTransfer();
         
         // Initialiser le bon mode dès le départ
         if (this.currentPicker === '3d') {

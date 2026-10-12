@@ -1,0 +1,185 @@
+// Export / import de toute la configuration de l'application dans un fichier JSON.
+//
+// SETTINGS est la liste de référence des paramètres sauvegardés dans le localStorage.
+// Tout nouveau paramètre persistant doit y être ajouté : il est alors automatiquement
+// inclus dans l'export et restauré par l'import (voir CLAUDE.md).
+
+export const PICKER_TYPES = ['3d', 'wheel', 'taptaup', 'pack'];
+
+const APP_ID = 'DailySCRUMPicker';
+const EXPORT_VERSION = 2;
+
+// Chaque paramètre : nom dans le fichier exporté, clé localStorage, et fonctions
+// de conversion. `parse` valide une valeur importée et renvoie null pour la valeur par
+// défaut (la clé est alors supprimée) ; elle lève une erreur si la valeur est invalide.
+export const SETTINGS = [
+    {
+        name: 'participants',
+        storageKey: 'dsp_participants_v2',
+        read: raw => JSON.parse(raw),
+        write: value => JSON.stringify(value),
+        parse: parseParticipants
+    },
+    {
+        name: 'pickerType',
+        storageKey: 'dsp_picker_type',
+        parse: value => {
+            if (value === null) return null;
+            if (!PICKER_TYPES.includes(value)) throw new Error(`Mode de jeu inconnu : ${value}`);
+            return value;
+        }
+    },
+    {
+        name: 'packLabel',
+        storageKey: 'dsp_pack_label',
+        parse: value => {
+            if (value === null) return null;
+            if (typeof value !== 'string') throw new Error('Libellé du paquet invalide');
+            return value.trim().slice(0, 40) || null;
+        }
+    },
+    {
+        name: 'packImage',
+        storageKey: 'dsp_pack_image',
+        parse: value => {
+            if (value === null) return null;
+            if (!isImageUrl(value)) throw new Error('Image du paquet invalide');
+            return value;
+        }
+    }
+];
+
+function isImageUrl(value) {
+    return typeof value === 'string' && /^(data:image\/|https?:\/\/)/i.test(value);
+}
+
+function parseParticipants(items) {
+    if (!Array.isArray(items)) throw new Error('Aucune liste de participants trouvée');
+
+    const participants = items
+        .map((item, idx) => {
+            // Un simple nom est aussi accepté
+            if (typeof item === 'string') item = { name: item };
+            if (!item || typeof item !== 'object') return null;
+            const name = typeof item.name === 'string' && item.name.trim()
+                ? item.name.trim()
+                : `Participant ${idx + 1}`;
+            const faceUrl = isImageUrl(item.faceUrl) ? item.faceUrl : null;
+            return { name, faceUrl, display: item.display !== false };
+        })
+        .filter(Boolean);
+
+    if (participants.length === 0) throw new Error('La liste de participants est vide');
+    return participants;
+}
+
+function readSetting(setting) {
+    try {
+        const raw = localStorage.getItem(setting.storageKey);
+        if (raw === null) return null;
+        return setting.read ? setting.read(raw) : raw;
+    } catch (_) {
+        return null;
+    }
+}
+
+export function exportSettings() {
+    const settings = {};
+    SETTINGS.forEach(setting => {
+        settings[setting.name] = readSetting(setting);
+    });
+
+    const data = {
+        app: APP_ID,
+        version: EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        settings
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `daily-scrum-picker-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+// Renvoie { nom: valeur } pour les paramètres présents dans le fichier.
+// Un paramètre absent du fichier n'est pas modifié à l'import.
+function parseImport(data) {
+    // Anciens formats : tableau de participants, ou { participants: [...] } (version 1)
+    if (Array.isArray(data)) return { participants: parseParticipants(data) };
+    if (!data || typeof data !== 'object') throw new Error('Fichier vide');
+    const source = data.settings && typeof data.settings === 'object' ? data.settings : data;
+
+    const values = {};
+    SETTINGS.forEach(setting => {
+        if (Object.prototype.hasOwnProperty.call(source, setting.name)) {
+            values[setting.name] = setting.parse(source[setting.name]);
+        }
+    });
+    if (Object.keys(values).length === 0) throw new Error('Aucun paramètre reconnu');
+    return values;
+}
+
+function writeSettings(values) {
+    // En cas d'échec (stockage plein), on remet les valeurs précédentes
+    const previous = SETTINGS.map(setting => [setting.storageKey, localStorage.getItem(setting.storageKey)]);
+    try {
+        SETTINGS.forEach(setting => {
+            if (!(setting.name in values)) return;
+            const value = values[setting.name];
+            if (value === null) localStorage.removeItem(setting.storageKey);
+            else localStorage.setItem(setting.storageKey, setting.write ? setting.write(value) : value);
+        });
+    } catch (error) {
+        previous.forEach(([key, raw]) => {
+            try {
+                if (raw === null) localStorage.removeItem(key);
+                else localStorage.setItem(key, raw);
+            } catch (_) {}
+        });
+        throw error;
+    }
+}
+
+export async function importSettings(file) {
+    let values;
+    try {
+        values = parseImport(JSON.parse(await file.text()));
+    } catch (error) {
+        console.error("Erreur lors de l'import de la configuration :", error);
+        alert(`Fichier invalide : impossible d'importer la configuration.\n${error.message}`);
+        return;
+    }
+
+    if (!confirm('Importer cette configuration ? Les réglages actuels seront remplacés et la page rechargée.')) {
+        return;
+    }
+
+    try {
+        writeSettings(values);
+    } catch (error) {
+        console.error("Erreur lors de l'enregistrement de la configuration :", error);
+        alert("Impossible d'enregistrer la configuration importée (stockage du navigateur plein ?).");
+        return;
+    }
+
+    // Recharger applique tous les réglages comme au démarrage
+    window.location.reload();
+}
+
+export function setupSettingsTransfer() {
+    const importInput = document.getElementById('import-settings-input');
+    document.getElementById('export-settings').addEventListener('click', () => exportSettings());
+    document.getElementById('import-settings').addEventListener('click', () => importInput.click());
+    importInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        // Réinitialiser pour pouvoir réimporter le même fichier
+        e.target.value = '';
+        if (file) importSettings(file);
+    });
+}
