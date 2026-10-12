@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles/wheel.css">
     <link rel="stylesheet" href="styles/modal.css">
     <link rel="stylesheet" href="styles/pack.css">
+    <link rel="stylesheet" href="styles/music.css">
 </head>
 <body>
     <div id="info" class="hud-pill">Configurez les participants puis cliquez sur la scène pour lancer !</div>
@@ -54,6 +55,7 @@
                 Participants <span id="participants-count" class="tab-badge">0</span>
             </button>
             <button type="button" class="panel-tab" data-tab="mode" role="tab" aria-selected="false">Mode de jeu</button>
+            <button type="button" class="panel-tab" data-tab="music" role="tab" aria-selected="false">Musiques</button>
         </nav>
 
         <div class="offcanvas-content">
@@ -112,6 +114,17 @@
                         <span class="mode-icon">🃏</span>
                         <span class="mode-text"><strong>Pack opening</strong><small>Ouvrez un booster, l'ordre des cartes fait l'ordre de passage</small></span>
                     </label>
+                </div>
+
+                <!-- Réglages propres au mode Enlèvement OVNI -->
+                <div id="ovni-settings" class="wheel-settings" hidden>
+                    <h3 class="section-title">Réglages de l'enlèvement</h3>
+                    <div class="switch-list">
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Musiques</strong><small>Pendant la course et quand l'OVNI choisit (onglet Musiques)</small></span>
+                            <input type="checkbox" class="switch" data-music-mode="3d">
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Réglages propres au mode Pack opening -->
@@ -189,7 +202,11 @@
                             <input type="checkbox" class="switch" data-setting="idleSpin">
                         </label>
                         <label class="switch-row">
-                            <span class="switch-text"><strong>Sons de la roue</strong><small>Cliquet du pointeur et jingle final</small></span>
+                            <span class="switch-text"><strong>Musiques</strong><small>Pendant la rotation et à l'arrêt (onglet Musiques)</small></span>
+                            <input type="checkbox" class="switch" data-music-mode="wheel">
+                        </label>
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Sons de la roue</strong><small>Cliquet du pointeur, et jingle final si aucune musique n'est jouée</small></span>
                             <input type="checkbox" class="switch" data-setting="sound">
                         </label>
                         <label class="switch-row">
@@ -200,6 +217,58 @@
 
                     <p class="setting-hint">Astuce : attrapez la roue et lancez-la d'un geste, sa vitesse suivra votre mouvement.</p>
                     <button type="button" id="wheel-settings-reset" class="btn btn-ghost btn-sm">Rétablir les réglages par défaut</button>
+                </div>
+            </section>
+
+            <!-- Onglet Musiques -->
+            <section class="panel-section music-panel" data-panel="music" hidden>
+                <div class="setting-range">
+                    <div class="setting-range-head">
+                        <label for="music-volume" class="field-label">Volume des musiques</label>
+                        <output id="music-volume-value" class="setting-value"></output>
+                    </div>
+                    <input type="range" id="music-volume" class="range-field" min="0" max="100" step="5">
+                </div>
+
+                <div class="music-playlist-block">
+                    <h3 class="section-title">Pendant le mélange</h3>
+                    <p class="setting-hint">Une musique est tirée au hasard parmi celles-ci, et jouée en boucle.</p>
+                    <ul class="music-list" data-playlist="shuffle"></ul>
+                </div>
+
+                <div class="music-playlist-block">
+                    <h3 class="section-title">Quand la personne est choisie</h3>
+                    <p class="setting-hint">Une musique tirée au hasard, jouée une fois.</p>
+                    <ul class="music-list" data-playlist="pick"></ul>
+                </div>
+
+                <div class="music-browser">
+                    <h3 class="section-title">Ajouter des musiques</h3>
+                    <form id="music-search" class="quick-add" autocomplete="off">
+                        <input id="music-search-input" type="search" class="text-field" placeholder="Rechercher dans la bibliothèque libre…" aria-label="Rechercher une musique">
+                        <button type="submit" class="btn btn-primary btn-square" title="Rechercher" aria-label="Rechercher">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+                        </button>
+                    </form>
+                    <div id="music-categories" class="music-categories"></div>
+                    <label class="music-filter">
+                        <input type="checkbox" id="music-commercial" checked>
+                        Seulement les licences qui autorisent un usage commercial
+                    </label>
+
+                    <div id="music-custom-actions" class="music-custom-actions" hidden>
+                        <input type="file" id="music-file-input" accept="audio/*" multiple hidden>
+                        <button type="button" id="music-file-choose" class="btn btn-secondary btn-sm">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
+                            Ajouter mes sons
+                        </button>
+                        <small>MP3, WAV, OGG… (15 Mo max par fichier). Ils restent dans ce navigateur et sont inclus dans l'export.</small>
+                    </div>
+
+                    <p id="music-status" class="music-status" hidden></p>
+                    <ul id="music-results" class="music-list"></ul>
+                    <button type="button" id="music-more" class="btn btn-ghost btn-sm" hidden>Plus de résultats</button>
+                    <p class="setting-hint music-credits">Bibliothèque : <a href="https://openverse.org" target="_blank" rel="noopener">Openverse</a> (Jamendo, Freesound, ccMixter, Wikimedia…), sons sous licence Creative Commons. Cliquez sur la licence d'une musique pour connaître les conditions de réutilisation.</p>
                 </div>
             </section>
 

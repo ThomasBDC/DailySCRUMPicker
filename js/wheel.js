@@ -1,6 +1,6 @@
 import { announcePick } from './participants.js';
 
-const SETTINGS_KEY = 'dsp_wheel_settings';
+export const WHEEL_SETTINGS_KEY = 'dsp_wheel_settings';
 
 export const WHEEL_DEFAULTS = {
     duration: 8,          // s, durée de la décélération
@@ -50,7 +50,7 @@ const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
 function loadSettings() {
     try {
-        const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+        const saved = JSON.parse(localStorage.getItem(WHEEL_SETTINGS_KEY) || '{}');
         const settings = { ...WHEEL_DEFAULTS };
         Object.keys(WHEEL_DEFAULTS).forEach((key) => {
             if (typeof saved[key] === typeof WHEEL_DEFAULTS[key]) settings[key] = saved[key];
@@ -63,7 +63,7 @@ function loadSettings() {
 
 function saveSettings(settings) {
     try {
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        localStorage.setItem(WHEEL_SETTINGS_KEY, JSON.stringify(settings));
     } catch (_) {
         // Stockage indisponible : les réglages restent valables pour la session
     }
@@ -453,6 +453,7 @@ export class WheelPicker {
             k,
             settleTime: overshoot ? SETTLE_TIME : 0,
         };
+        this.audioManager?.playSelectionMusic('wheel');
     }
 
     spinAngleAt(t) {
@@ -475,11 +476,13 @@ export class WheelPicker {
     finishSpin() {
         this.angle = this.spinState.finalAngle;
         this.spinState = null;
+        this.audioManager?.stopSelectionMusic();
         const hit = this.segmentUnderPointer();
         if (!hit) return;
         this.highlight = { seg: hit.seg, start: performance.now() / 1000 };
         this.selectedParticipant = hit.seg.participant;
-        this.playWinSound();
+        // Le jingle de la roue ne sert que si aucune musique n'est jouée pour la personne choisie
+        if (!this.audioManager?.playPickSound('wheel')) this.playWinSound();
         setTimeout(() => this.revealWinner(hit.seg), HIGHLIGHT_TIME * 1000);
     }
 
@@ -489,6 +492,7 @@ export class WheelPicker {
         const winner = seg.participant;
         announcePick(winner.id);
         this.showWinnerModal(winner, () => {
+            this.audioManager?.stopPickSound();
             // La personne tirée quitte la roue en douceur
             seg.target = 0;
             this.highlight = null;
@@ -1059,6 +1063,8 @@ export class WheelPicker {
     }
 
     reset() {
+        if (this.spinState) this.audioManager?.stopSelectionMusic();
+        if (this.highlight) this.audioManager?.stopPickSound();
         this.spinState = null;
         this.drag = null;
         this.highlight = null;

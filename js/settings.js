@@ -1,8 +1,12 @@
 // Export / import de toute la configuration de l'application dans un fichier JSON.
 //
-// SETTINGS est la liste de référence des paramètres sauvegardés dans le localStorage.
+// SETTINGS est la liste de référence des paramètres sauvegardés (localStorage ou IndexedDB).
 // Tout nouveau paramètre persistant doit y être ajouté : il est alors automatiquement
 // inclus dans l'export et restauré par l'import (voir CLAUDE.md).
+
+import { WHEEL_DEFAULTS, WHEEL_SETTINGS_KEY } from './wheel.js';
+import { MUSIC_STORAGE_KEY, parseMusicSettings } from './music.js';
+import { exportSounds, parseSounds, replaceSounds } from './soundStore.js';
 
 export const PICKER_TYPES = ['3d', 'wheel', 'taptaup', 'pack'];
 
@@ -12,6 +16,8 @@ const EXPORT_VERSION = 2;
 // Chaque paramètre : nom dans le fichier exporté, clé localStorage, et fonctions
 // de conversion. `parse` valide une valeur importée et renvoie null pour la valeur par
 // défaut (la clé est alors supprimée) ; elle lève une erreur si la valeur est invalide.
+// Un paramètre stocké ailleurs que dans le localStorage (IndexedDB…) remplace `storageKey`
+// par `load()` / `store(value)`, asynchrones ; `store(null)` revient à la valeur par défaut.
 export const SETTINGS = [
     {
         name: 'participants',
@@ -46,8 +52,40 @@ export const SETTINGS = [
             if (!isImageUrl(value)) throw new Error('Image du paquet invalide');
             return value;
         }
+    },
+    {
+        name: 'wheelSettings',
+        storageKey: WHEEL_SETTINGS_KEY,
+        read: raw => JSON.parse(raw),
+        write: value => JSON.stringify(value),
+        parse: parseWheelSettings
+    },
+    {
+        name: 'music',
+        storageKey: MUSIC_STORAGE_KEY,
+        read: raw => JSON.parse(raw),
+        write: value => JSON.stringify(value),
+        parse: parseMusicSettings
+    },
+    {
+        // Sons ajoutés par l'utilisateur, exportés en data URL
+        name: 'customSounds',
+        load: exportSounds,
+        store: replaceSounds,
+        parse: parseSounds
     }
 ];
+
+function parseWheelSettings(value) {
+    if (value === null) return null;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Réglages de la roue invalides');
+    // Seules les options connues, du bon type, sont gardées ; les autres prennent leur valeur par défaut
+    const settings = {};
+    Object.keys(WHEEL_DEFAULTS).forEach((key) => {
+        if (typeof value[key] === typeof WHEEL_DEFAULTS[key]) settings[key] = value[key];
+    });
+    return settings;
+}
 
 function isImageUrl(value) {
     return typeof value === 'string' && /^(data:image\/|https?:\/\/)/i.test(value);
@@ -73,7 +111,15 @@ function parseParticipants(items) {
     return participants;
 }
 
-function readSetting(setting) {
+async function readSetting(setting) {
+    if (setting.load) {
+        try {
+            return await setting.load();
+        } catch (error) {
+            console.warn(`Paramètre ${setting.name} illisible :`, error);
+            return null;
+        }
+    }
     try {
         const raw = localStorage.getItem(setting.storageKey);
         if (raw === null) return null;
@@ -83,11 +129,11 @@ function readSetting(setting) {
     }
 }
 
-export function exportSettings() {
+export async function exportSettings() {
     const settings = {};
-    SETTINGS.forEach(setting => {
-        settings[setting.name] = readSetting(setting);
-    });
+    for (const setting of SETTINGS) {
+        settings[setting.name] = await readSetting(setting);
+    }
 
     const data = {
         app: APP_ID,
@@ -125,11 +171,16 @@ function parseImport(data) {
     return values;
 }
 
-function writeSettings(values) {
-    // En cas d'échec (stockage plein), on remet les valeurs précédentes
-    const previous = SETTINGS.map(setting => [setting.storageKey, localStorage.getItem(setting.storageKey)]);
+async function writeSettings(values) {
+    // En cas d'échec (stockage plein), on remet les valeurs précédentes du localStorage
+    const local = SETTINGS.filter(setting => setting.storageKey);
+    const previous = local.map(setting => [setting.storageKey, localStorage.getItem(setting.storageKey)]);
     try {
-        SETTINGS.forEach(setting => {
+        // Les paramètres stockés ailleurs d'abord : ce sont les plus susceptibles d'échouer
+        for (const setting of SETTINGS) {
+            if (setting.store && setting.name in values) await setting.store(values[setting.name]);
+        }
+        local.forEach(setting => {
             if (!(setting.name in values)) return;
             const value = values[setting.name];
             if (value === null) localStorage.removeItem(setting.storageKey);
@@ -161,7 +212,7 @@ export async function importSettings(file) {
     }
 
     try {
-        writeSettings(values);
+        await writeSettings(values);
     } catch (error) {
         console.error("Erreur lors de l'enregistrement de la configuration :", error);
         alert("Impossible d'enregistrer la configuration importée (stockage du navigateur plein ?).");
@@ -174,7 +225,12 @@ export async function importSettings(file) {
 
 export function setupSettingsTransfer() {
     const importInput = document.getElementById('import-settings-input');
-    document.getElementById('export-settings').addEventListener('click', () => exportSettings());
+    document.getElementById('export-settings').addEventListener('click', () => {
+        exportSettings().catch((error) => {
+            console.error("Erreur lors de l'export de la configuration :", error);
+            alert("Impossible d'exporter la configuration.");
+        });
+    });
     document.getElementById('import-settings').addEventListener('click', () => importInput.click());
     importInput.addEventListener('change', (e) => {
         const file = e.target.files?.[0];

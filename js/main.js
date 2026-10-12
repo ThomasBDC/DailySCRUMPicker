@@ -6,6 +6,7 @@ import { WheelPicker } from './wheel.js';
 import { TapTaupePicker } from './taptaup.js';
 import { PackOpeningPicker } from './pack.js';
 import { AudioManager } from './audio.js';
+import { MusicPanel } from './musicPanel.js';
 import { setupSettingsTransfer, PICKER_TYPES } from './settings.js';
 
 class Game {
@@ -38,6 +39,9 @@ class Game {
         
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
+
+        // Onglet Musiques du panneau de configuration
+        this.musicPanel = new MusicPanel(this.audioManager);
 
         // Export / import de toute la configuration
         setupSettingsTransfer();
@@ -148,6 +152,7 @@ class Game {
         }
         
         this.updatePickerSettings();
+        this.audioManager.stopAll();
 
         // Changer de sélecteur commence un nouveau tour
         this.participantManager.resetRound();
@@ -228,6 +233,10 @@ class Game {
 
     // Affiche les réglages propres au sélecteur courant dans le panneau de configuration
     updatePickerSettings() {
+        const ovniSettings = document.getElementById('ovni-settings');
+        if (ovniSettings) {
+            ovniSettings.hidden = this.currentPicker !== '3d';
+        }
         const packSettings = document.getElementById('pack-settings');
         if (packSettings) {
             packSettings.hidden = this.currentPicker !== 'pack';
@@ -295,6 +304,7 @@ class Game {
     resetGame() {
         this.running = false;
         this.chosenIdx = null;
+        this.audioManager.stopAll();
 
         if (this.currentPicker === 'wheel') {
             if (this.wheel) {
@@ -475,8 +485,7 @@ class Game {
         this.persons.forEach(person => person.startRunning());
         
         // Démarre la musique de sélection avec fade in
-        this.audioManager.playSelectionMusic();
-        console.log("lamusique");
+        this.audioManager.playSelectionMusic('3d');
         setTimeout(() => {
             this.running = false;
             this.persons.forEach(person => person.stopRunning());
@@ -494,8 +503,8 @@ class Game {
 
         announcePick(chosenPerson.group.userData.participantId);
 
-        // Jouer le son du spotlight
-        this.audioManager.playSpotlightSound();
+        // Musique de la personne choisie
+        this.audioManager.playPickSound('3d');
 
         this.scene.spotlight.visible = true;
         if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
@@ -517,6 +526,7 @@ class Game {
     }
 
     removePerson() {
+        this.audioManager.stopPickSound();
         if (this.chosenIdx !== null && this.persons[this.chosenIdx]) {
             const personToRemove = this.persons[this.chosenIdx];
             this.scene.scene.remove(personToRemove.group);
