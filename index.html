@@ -81,18 +81,6 @@
 
                 <ul id="participants-list" class="participants-list"></ul>
                 <p id="participants-empty" class="empty-state" hidden>Aucun participant pour l'instant.<br>Tapez un nom ci-dessus puis Entrée.</p>
-
-                <div class="import-export-actions">
-                    <button type="button" id="export-participants" class="btn btn-ghost btn-sm" title="Télécharger la configuration des participants">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg>
-                        Exporter
-                    </button>
-                    <button type="button" id="import-participants" class="btn btn-ghost btn-sm" title="Charger une configuration de participants">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
-                        Importer
-                    </button>
-                    <input type="file" id="import-participants-input" accept="application/json,.json" hidden>
-                </div>
             </section>
 
             <!-- Onglet Mode de jeu -->
@@ -214,6 +202,22 @@
                     <button type="button" id="wheel-settings-reset" class="btn btn-ghost btn-sm">Rétablir les réglages par défaut</button>
                 </div>
             </section>
+
+            <!-- Sauvegarde de toute la configuration (participants, mode de jeu, réglages des modes) -->
+            <div class="config-transfer">
+                <h3 class="section-title">Sauvegarde de la configuration</h3>
+                <div class="import-export-actions">
+                    <button type="button" id="export-settings" class="btn btn-ghost btn-sm" title="Télécharger toute la configuration (participants, mode de jeu, réglages)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg>
+                        Exporter
+                    </button>
+                    <button type="button" id="import-settings" class="btn btn-ghost btn-sm" title="Charger une configuration exportée">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
+                        Importer
+                    </button>
+                    <input type="file" id="import-settings-input" accept="application/json,.json" hidden>
+                </div>
+            </div>
         </div>
 
         <footer class="offcanvas-footer">
