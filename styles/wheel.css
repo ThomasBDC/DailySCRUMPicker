@@ -1,6 +1,192 @@
-/* Styles pour le canvas de la roue */
+/* Canvas des différents modes */
 canvas {
     display: block;
     margin: auto;
     cursor: pointer;
+}
+
+/* Canvas de la roue */
+.wheel-canvas {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: block;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.wheel-canvas.dragging {
+    cursor: grabbing;
+}
+
+/* Réglages de la roue (panneau de configuration) */
+.wheel-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.setting-range {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.setting-range-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.setting-range-head .field-label {
+    margin: 0;
+}
+
+.setting-value {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.range-field {
+    width: 100%;
+    height: 22px;
+    margin: 0;
+    background: transparent;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.setting-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.setting-select {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.setting-select .field-label {
+    margin: 0;
+}
+
+.setting-select-wide {
+    grid-column: 1 / -1;
+}
+
+.select-field {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 40px;
+    padding-right: 34px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e96aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    cursor: pointer;
+}
+
+.select-field option {
+    background: var(--surface);
+    color: var(--text);
+}
+
+.switch-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.switch-row + .switch-row {
+    border-top: 1px solid var(--border);
+}
+
+.switch-row:hover {
+    background: var(--surface-3);
+}
+
+.switch-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.switch-text strong {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.switch-text small {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 22px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition: background 0.2s var(--ease);
+}
+
+.switch::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.2s var(--ease), background 0.2s;
+}
+
+.switch:checked {
+    background: var(--accent);
+    box-shadow: none;
+}
+
+.switch:checked::before {
+    background: #fff;
+    transform: translateX(16px);
+}
+
+.setting-hint {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+#wheel-settings-reset {
+    align-self: flex-start;
 }

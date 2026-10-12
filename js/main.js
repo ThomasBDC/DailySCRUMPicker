@@ -70,7 +70,7 @@ class Game {
         
         // Initialiser l'affichage correct au démarrage
         if (this.currentPicker === 'wheel') {
-            this.wheel = new WheelPicker(document.body);
+            this.wheel = new WheelPicker(document.body, this.audioManager);
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
             }
@@ -180,7 +180,7 @@ class Game {
                 this.taptaup.renderer.domElement.style.display = 'none';
             }
             if (!this.wheel) {
-                this.wheel = new WheelPicker(document.body);
+                this.wheel = new WheelPicker(document.body, this.audioManager);
                 // Si des participants sont déjà configurés, les ajouter à la roue
                 if (this.participantManager.participants.length > 0) {
                     this.wheel.setParticipants(this.participantManager.participants);
@@ -227,12 +227,16 @@ class Game {
         if (packSettings) {
             packSettings.hidden = this.currentPicker !== 'pack';
         }
+        const wheelSettings = document.getElementById('wheel-settings');
+        if (wheelSettings) {
+            wheelSettings.hidden = this.currentPicker !== 'wheel';
+        }
     }
 
     createPersons(participants) {
         if (this.currentPicker === 'wheel') {
             if (!this.wheel) {
-                this.wheel = new WheelPicker(document.body);
+                this.wheel = new WheelPicker(document.body, this.audioManager);
             }
             this.wheel.setParticipants(participants);
             return;

@@ -139,6 +139,80 @@
                         <button type="button" id="pack-image-remove" class="btn btn-ghost btn-sm">Retirer</button>
                     </div>
                 </div>
+
+                <!-- Réglages propres au mode Roue -->
+                <div id="wheel-settings" class="wheel-settings" hidden>
+                    <h3 class="section-title">Réglages de la roue</h3>
+
+                    <div class="setting-range">
+                        <div class="setting-range-head">
+                            <label for="wheel-duration" class="field-label">Durée de rotation</label>
+                            <output class="setting-value" data-output="duration"></output>
+                        </div>
+                        <input type="range" id="wheel-duration" class="range-field" data-setting="duration" min="3" max="20" step="1">
+                    </div>
+
+                    <div class="setting-range">
+                        <div class="setting-range-head">
+                            <label for="wheel-turns" class="field-label">Force du lancer</label>
+                            <output class="setting-value" data-output="turns"></output>
+                        </div>
+                        <input type="range" id="wheel-turns" class="range-field" data-setting="turns" min="3" max="15" step="1">
+                    </div>
+
+                    <div class="setting-grid">
+                        <label class="setting-select">
+                            <span class="field-label">Freinage</span>
+                            <select class="text-field select-field" data-setting="braking">
+                                <option value="steady">Régulier</option>
+                                <option value="natural">Naturel</option>
+                                <option value="suspense">Suspense</option>
+                            </select>
+                        </label>
+                        <label class="setting-select">
+                            <span class="field-label">Pointeur</span>
+                            <select class="text-field select-field" data-setting="pointer">
+                                <option value="right">À droite</option>
+                                <option value="top">En haut</option>
+                            </select>
+                        </label>
+                        <label class="setting-select setting-select-wide">
+                            <span class="field-label">Couleurs</span>
+                            <select class="text-field select-field" data-setting="palette">
+                                <option value="vivid">Vives</option>
+                                <option value="rainbow">Arc-en-ciel</option>
+                                <option value="pastel">Pastel</option>
+                                <option value="theme">Violet / bleu</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="switch-list">
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Élan avant le lancer</strong><small>La roue recule un peu avant de partir</small></span>
+                            <input type="checkbox" class="switch" data-setting="windup">
+                        </label>
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Rebond à l'arrêt</strong><small>Elle dépasse légèrement puis revient</small></span>
+                            <input type="checkbox" class="switch" data-setting="bounce">
+                        </label>
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Rotation lente au repos</strong><small>La roue tourne doucement en attendant</small></span>
+                            <input type="checkbox" class="switch" data-setting="idleSpin">
+                        </label>
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Sons de la roue</strong><small>Cliquet du pointeur et jingle final</small></span>
+                            <input type="checkbox" class="switch" data-setting="sound">
+                        </label>
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Confettis</strong><small>Pour fêter la personne tirée</small></span>
+                            <input type="checkbox" class="switch" data-setting="confetti">
+                        </label>
+                    </div>
+
+                    <p class="setting-hint">Astuce : attrapez la roue et lancez-la d'un geste, sa vitesse suivra votre mouvement.</p>
+                    <button type="button" id="wheel-settings-reset" class="btn btn-ghost btn-sm">Rétablir les réglages par défaut</button>
+                </div>
             </section>
         </div>
 
