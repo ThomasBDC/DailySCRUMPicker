@@ -56,11 +56,19 @@ const FLAVORS = [
 const WEAKNESSES = ['Réunions', 'Lundis matin', 'Bugs en prod', 'Wi-Fi capricieux', 'Mails « urgent »', 'Specs floues'];
 
 const CUT_THRESHOLD = 0.75;        // part de la largeur du paquet à découper pour l'ouvrir
-const CUT_ZONE = 0.32;             // le découpage doit commencer dans le haut du paquet
+// Le découpage peut commencer n'importe où sur la largeur de l'écran, dans une bande
+// autour du haut du paquet (exprimée en hauteur de paquet)
+const CUT_ZONE_ABOVE = 0.25;
+const CUT_ZONE_BELOW = 0.32;
 const SWIPE_DISTANCE_RATIO = 0.28; // distance (en largeur de carte) pour valider un swipe
 const SWIPE_VELOCITY = 0.55;       // ou vitesse minimale (px/ms)
 const STACK_VISIBLE_DEPTH = 3;     // nombre de cartes visibles sous la carte du dessus
 const TILT_MAX_DEG = 14;
+
+const DEFAULT_PACK_LABEL = 'DAILY SCRUM';
+const LABEL_STORAGE_KEY = 'dsp_pack_label';
+const IMAGE_STORAGE_KEY = 'dsp_pack_image';
+const IMAGE_MAX_SIZE = 600; // px, l'image est réduite avant d'être stockée
 
 function shuffle(array) {
     const result = [...array];
@@ -115,6 +123,53 @@ function hasPhoto(url) {
     return !!url && url !== 'null' && url !== window.location.href;
 }
 
+function readStorage(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch (_) {
+        return null;
+    }
+}
+
+function writeStorage(key, value) {
+    try {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+    } catch (error) {
+        console.warn('Impossible de sauvegarder le réglage du paquet :', error);
+    }
+}
+
+// Réduit l'image pour qu'elle tienne dans le localStorage
+function resizeImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = reject;
+            img.onload = () => {
+                const scale = Math.min(1, IMAGE_MAX_SIZE / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(img.width * scale));
+                canvas.height = Math.max(1, Math.round(img.height * scale));
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/webp', 0.9));
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Taille du titre selon la longueur du libellé (en fraction de largeur de carte)
+function titleScale(label) {
+    const longestWord = Math.max(...label.split(/\s+/).map(word => word.length));
+    const byWord = 0.85 / (Math.max(longestWord, 1) * 0.62);
+    const byLength = label.length > 24 ? 0.09 : label.length > 14 ? 0.12 : 0.15;
+    return Math.min(0.15, byWord, byLength);
+}
+
 function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -135,9 +190,12 @@ export class PackOpeningPicker {
         this.hovered = null;
         this.timers = new Set();
         this.bannerTimer = null;
+        this.label = readStorage(LABEL_STORAGE_KEY) || DEFAULT_PACK_LABEL;
+        this.image = readStorage(IMAGE_STORAGE_KEY);
 
         this.buildDom();
         this.bindEvents();
+        this.bindSettings();
         this.renderPack();
     }
 
@@ -162,11 +220,68 @@ export class PackOpeningPicker {
         this.onPointerUp = (e) => this.handlePointerUp(e);
         this.onKeyDown = (e) => this.handleKeyDown(e);
 
-        this.stage.addEventListener('pointerdown', this.onPointerDown);
+        this.root.addEventListener('pointerdown', this.onPointerDown);
         window.addEventListener('pointermove', this.onPointerMove);
         window.addEventListener('pointerup', this.onPointerUp);
         window.addEventListener('pointercancel', this.onPointerUp);
         document.addEventListener('keydown', this.onKeyDown);
+    }
+
+    // Réglages du paquet (libellé + image) dans le panneau de configuration
+    bindSettings() {
+        const labelInput = document.getElementById('pack-label-input');
+        const imageInput = document.getElementById('pack-image-input');
+        this.imageThumb = document.getElementById('pack-image-thumb');
+        this.imageRemove = document.getElementById('pack-image-remove');
+
+        if (labelInput) {
+            labelInput.value = this.label;
+            labelInput.addEventListener('input', () => {
+                this.label = labelInput.value.trim() || DEFAULT_PACK_LABEL;
+                writeStorage(LABEL_STORAGE_KEY, labelInput.value.trim() ? this.label : null);
+                this.refreshPack();
+            });
+        }
+
+        if (imageInput) {
+            imageInput.addEventListener('change', async () => {
+                const file = imageInput.files?.[0];
+                imageInput.value = '';
+                if (!file) return;
+                try {
+                    this.setImage(await resizeImage(file));
+                } catch (error) {
+                    console.warn("Impossible de lire l'image du paquet :", error);
+                }
+            });
+            this.imageThumb?.addEventListener('click', () => imageInput.click());
+            document.getElementById('pack-image-choose')?.addEventListener('click', () => imageInput.click());
+        }
+
+        this.imageRemove?.addEventListener('click', () => this.setImage(null));
+        this.updateImageThumb();
+    }
+
+    setImage(dataUrl) {
+        this.image = dataUrl;
+        writeStorage(IMAGE_STORAGE_KEY, dataUrl);
+        this.updateImageThumb();
+        this.refreshPack();
+    }
+
+    updateImageThumb() {
+        if (this.imageThumb) {
+            if (this.image) this.imageThumb.src = this.image;
+            else this.imageThumb.removeAttribute('src');
+        }
+        if (this.imageRemove) this.imageRemove.hidden = !this.image;
+    }
+
+    // Un paquet déjà ouvert n'est pas modifié : le réglage s'applique au prochain
+    refreshPack() {
+        if (this.state === 'empty' || this.state === 'idle') {
+            this.renderPack();
+        }
     }
 
     show() {
@@ -199,9 +314,7 @@ export class PackOpeningPicker {
     setParticipants(participants) {
         this.participants = participants.filter(p => p.display !== false);
         // Un paquet déjà ouvert garde ses cartes : la nouvelle liste servira au prochain paquet
-        if (this.state === 'empty' || this.state === 'idle') {
-            this.renderPack();
-        }
+        this.refreshPack();
     }
 
     reset() {
@@ -216,7 +329,7 @@ export class PackOpeningPicker {
 
     dispose() {
         this.clearTimers();
-        this.stage.removeEventListener('pointerdown', this.onPointerDown);
+        this.root.removeEventListener('pointerdown', this.onPointerDown);
         window.removeEventListener('pointermove', this.onPointerMove);
         window.removeEventListener('pointerup', this.onPointerUp);
         window.removeEventListener('pointercancel', this.onPointerUp);
@@ -276,12 +389,10 @@ export class PackOpeningPicker {
 
         const top = el('div', 'pack-top');
         const body = el('div', 'pack-body');
-        const emblem = el('div', 'pack-emblem');
-        emblem.appendChild(el('span', null, '✦'));
-        const title = el('div', 'pack-title');
-        title.append(el('span', null, 'DAILY'), el('span', null, 'SCRUM'));
+        const title = el('div', 'pack-title', this.label);
+        title.style.setProperty('--title-scale', titleScale(this.label));
         body.append(
-            emblem,
+            this.buildEmblem('pack-emblem'),
             title,
             el('div', 'pack-subtitle', 'Booster · Édition Stand-up'),
             el('div', 'pack-count', count > 0 ? `${count} carte${count > 1 ? 's' : ''}` : 'Paquet vide'),
@@ -303,6 +414,22 @@ export class PackOpeningPicker {
             : 'Ajoute des participants dans la configuration';
     }
 
+    // Médaillon : image choisie dans la configuration, sinon une étoile
+    buildEmblem(className) {
+        const emblem = el('div', className);
+        if (this.image) {
+            emblem.classList.add('has-image');
+            const img = document.createElement('img');
+            img.alt = '';
+            img.draggable = false;
+            img.src = this.image;
+            emblem.appendChild(img);
+        } else {
+            emblem.appendChild(el('span', null, '✦'));
+        }
+        return emblem;
+    }
+
     clearStage() {
         Array.from(this.stage.children).forEach(child => {
             if (child !== this.banner) child.remove();
@@ -322,7 +449,8 @@ export class PackOpeningPicker {
 
     startCut(e) {
         const rect = this.packEl.getBoundingClientRect();
-        if (e.clientY - rect.top > rect.height * CUT_ZONE) {
+        const y = e.clientY - rect.top;
+        if (y < -rect.height * CUT_ZONE_ABOVE || y > rect.height * CUT_ZONE_BELOW) {
             this.nudgePack();
             return;
         }
@@ -508,7 +636,7 @@ export class PackOpeningPicker {
 
     buildCardBack() {
         const back = el('div', 'card-back');
-        back.append(el('div', 'card-back-emblem', '✦'), el('div', 'card-back-title', 'DAILY SCRUM'));
+        back.append(this.buildEmblem('card-back-emblem'), el('div', 'card-back-title', this.label));
         return back;
     }
 
@@ -568,11 +696,18 @@ export class PackOpeningPicker {
         return slot ? slot.querySelector('.card') : null;
     }
 
+    // La carte suivante se retourne dès qu'on commence à déplacer celle du dessus
+    revealNext() {
+        const next = this.slots[this.index + 1];
+        if (next) next.classList.add('is-peek');
+    }
+
     startDrag(e) {
         const cardEl = this.topCardEl();
         if (!cardEl || !cardEl.contains(e.target)) return;
         e.preventDefault();
         this.resetTilt(cardEl);
+        this.revealNext();
         cardEl.classList.add('dragging');
         cardEl.style.transition = 'none';
         this.drag = {
@@ -630,6 +765,7 @@ export class PackOpeningPicker {
         const cardEl = this.topCardEl();
         if (!slot || !cardEl) return;
 
+        this.revealNext();
         slot.classList.add('flying');
         cardEl.classList.remove('nudge');
         cardEl.style.transition = 'transform .5s cubic-bezier(.4, 0, .8, .6), opacity .5s ease';

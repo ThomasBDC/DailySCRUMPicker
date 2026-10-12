@@ -64,6 +64,7 @@ class Game {
         if (pickerSelect) {
             pickerSelect.value = this.currentPicker;
         }
+        this.updatePickerSettings();
         
         // Initialiser l'affichage correct au démarrage
         if (this.currentPicker === 'wheel') {
@@ -139,6 +140,8 @@ class Game {
             console.warn('Erreur lors de la sauvegarde du type de picker:', error);
         }
         
+        this.updatePickerSettings();
+
         // L'étiquette de nom d'un autre sélecteur ne doit pas rester affichée
         if (this.nameEl) {
             this.nameEl.style.display = 'none';
@@ -210,6 +213,14 @@ class Game {
                 this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
             }
             this.scene.renderer.domElement.style.display = 'block';
+        }
+    }
+
+    // Affiche les réglages propres au sélecteur courant dans le panneau de configuration
+    updatePickerSettings() {
+        const packSettings = document.getElementById('pack-settings');
+        if (packSettings) {
+            packSettings.hidden = this.currentPicker !== 'pack';
         }
     }
 

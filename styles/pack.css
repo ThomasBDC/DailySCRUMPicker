@@ -199,6 +199,25 @@
     animation: emblemSpin 8s linear infinite;
 }
 
+.pack-emblem.has-image,
+.card-back-emblem.has-image {
+    overflow: hidden;
+    background: #fff;
+}
+
+.pack-emblem.has-image {
+    width: 52%;
+    animation: none;
+}
+
+.pack-emblem img,
+.card-back-emblem img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}
+
 .pack-emblem span {
     font-size: calc(var(--card-w) * .2);
     color: #fff;
@@ -207,11 +226,12 @@
 }
 
 .pack-title {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    line-height: .9;
-    font-size: calc(var(--card-w) * .15);
+    max-width: 90%;
+    padding-top: .08em;
+    line-height: 1.02;
+    text-align: center;
+    overflow-wrap: anywhere;
+    font-size: calc(var(--card-w) * var(--title-scale, .15));
     font-weight: 900;
     font-style: italic;
     letter-spacing: .04em;
@@ -938,8 +958,8 @@
     animation: crownGlow 1.8s ease-in-out infinite;
 }
 
-/* Les cartes du dessous sont face cachée */
-.card-slot:not(.is-top) .card-fx {
+/* Les cartes du dessous sont face cachée, sauf la suivante pendant qu'on déplace celle du dessus */
+.card-slot:not(.is-top):not(.is-peek) .card-fx {
     display: none;
 }
 
@@ -982,6 +1002,9 @@
 
 .card-back-title {
     position: relative;
+    max-width: 85%;
+    text-align: center;
+    overflow-wrap: anywhere;
     color: #ffd23f;
     font-size: 1.2em;
     font-weight: 900;
@@ -990,10 +1013,15 @@
     text-shadow: 0 .1em 0 #2b1260;
 }
 
-.card-slot.is-top .card-back {
+.card-slot.is-top .card-back,
+.card-slot.is-peek .card-back {
     opacity: 0;
     transform: scale(1.05);
     pointer-events: none;
+}
+
+.card-slot.is-peek .card-back {
+    transition-duration: .15s;
 }
 
 /* ---------- Récapitulatif ---------- */
@@ -1104,6 +1132,10 @@
     background: linear-gradient(180deg, #ffe58a, #ffb627);
     box-shadow: 0 6px 0 #b9741a, 0 10px 25px rgba(0, 0, 0, .4);
     transition: transform .1s, box-shadow .1s;
+}
+
+.pack-button:hover {
+    background: linear-gradient(180deg, #ffe58a, #ffb627);
 }
 
 .pack-button:active {
@@ -1224,4 +1256,44 @@
         animation-duration: .01ms !important;
         animation-iteration-count: 1 !important;
     }
+}
+
+/* ---------- Réglages du paquet (panneau de configuration) ---------- */
+
+.pack-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 16px;
+}
+
+.pack-settings[hidden] {
+    display: none;
+}
+
+.pack-settings label,
+.pack-settings-label {
+    margin: 0;
+    color: #333;
+    font-family: Arial, sans-serif;
+}
+
+.pack-settings input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.pack-image-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pack-image-row button {
+    padding: 8px 12px;
+    font-size: 13px;
 }

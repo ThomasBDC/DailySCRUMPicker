@@ -55,6 +55,18 @@
                     <option value="taptaup">Tap Taupe</option>
                     <option value="pack">Pack opening</option>
                 </select>
+                <!-- Réglages propres au mode Pack opening -->
+                <div id="pack-settings" class="pack-settings" hidden>
+                    <label for="pack-label-input">Libellé du paquet :</label>
+                    <input type="text" id="pack-label-input" maxlength="40" placeholder="DAILY SCRUM">
+                    <span class="pack-settings-label">Image du paquet :</span>
+                    <div class="pack-image-row">
+                        <img id="pack-image-thumb" class="face-thumb" alt="" title="Choisir une image">
+                        <input type="file" id="pack-image-input" class="face-input" accept="image/*">
+                        <button type="button" id="pack-image-choose">Choisir une image</button>
+                        <button type="button" id="pack-image-remove" class="secondary-button">Retirer</button>
+                    </div>
+                </div>
             </div>
             <div class="offcanvas-actions">
                 <button id="add-participant">Ajouter un participant</button>
