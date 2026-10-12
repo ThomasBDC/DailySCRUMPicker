@@ -1,6 +1,11 @@
 import { announcePick } from './participants.js';
+import { resizeImage } from './image.js';
+import { UnsplashPicker } from './unsplash.js';
 
 export const WHEEL_SETTINGS_KEY = 'dsp_wheel_settings';
+// Image au centre de la roue : { src, credit: { name, url } | null }, stockée en JSON
+export const HUB_IMAGE_KEY = 'dsp_wheel_hub_image';
+const HUB_IMAGE_MAX_SIZE = 400; // px, une image du PC est réduite avant d'être stockée
 
 export const WHEEL_DEFAULTS = {
     duration: 8,          // s, durée de la décélération
@@ -13,7 +18,11 @@ export const WHEEL_DEFAULTS = {
     idleSpin: true,       // rotation lente quand la roue est au repos
     sound: true,          // cliquet + jingle (suit aussi le bouton son global)
     confetti: true,
+    hubSize: 13,          // rayon du centre, en % du rayon de la roue
 };
+
+export const HUB_SIZE_MIN = 8;
+export const HUB_SIZE_MAX = 40;
 
 // Exposant de la courbe de décélération 1 - (1 - t)^k : plus k est grand, plus la fin traîne
 const BRAKING = { steady: 2.2, natural: 3, suspense: 4 };
@@ -55,6 +64,7 @@ function loadSettings() {
         Object.keys(WHEEL_DEFAULTS).forEach((key) => {
             if (typeof saved[key] === typeof WHEEL_DEFAULTS[key]) settings[key] = saved[key];
         });
+        settings.hubSize = clamp(Math.round(settings.hubSize) || WHEEL_DEFAULTS.hubSize, HUB_SIZE_MIN, HUB_SIZE_MAX);
         return settings;
     } catch (_) {
         return { ...WHEEL_DEFAULTS };
@@ -66,6 +76,24 @@ function saveSettings(settings) {
         localStorage.setItem(WHEEL_SETTINGS_KEY, JSON.stringify(settings));
     } catch (_) {
         // Stockage indisponible : les réglages restent valables pour la session
+    }
+}
+
+function loadHubImage() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(HUB_IMAGE_KEY));
+        return saved && typeof saved.src === 'string' ? { src: saved.src, credit: saved.credit || null } : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function saveHubImage(image) {
+    try {
+        if (image) localStorage.setItem(HUB_IMAGE_KEY, JSON.stringify(image));
+        else localStorage.removeItem(HUB_IMAGE_KEY);
+    } catch (error) {
+        console.warn("Impossible de sauvegarder l'image du centre de la roue :", error);
     }
 }
 
@@ -103,6 +131,7 @@ export class WheelPicker {
         this.discDirty = true;
 
         this.settings = loadSettings();
+        this.hubImage = loadHubImage();
         this.segments = [];        // { participant, key, weight, target, color }
         this.images = new Map();   // url -> Image chargée
         this.loadingImages = new Set();
@@ -121,6 +150,8 @@ export class WheelPicker {
         this.setupCanvas();
         this.setupEventListeners();
         this.bindSettings();
+        this.bindHubImage();
+        if (this.hubImage) this.loadImage(this.hubImage.src);
 
         // Les textes sont dessinés en Inter : on redessine une fois la police chargée
         document.fonts?.ready.then(() => { this.discDirty = true; });
@@ -196,11 +227,76 @@ export class WheelPicker {
     }
 
     refreshSettingOutputs() {
+        const units = { duration: 's', turns: 'tours', hubSize: '%' };
         document.querySelectorAll('#wheel-settings [data-output]').forEach((output) => {
             const key = output.dataset.output;
-            const value = this.settings[key];
-            output.textContent = key === 'duration' ? `${value} s` : `${value} tours`;
+            output.textContent = `${this.settings[key]} ${units[key]}`;
         });
+    }
+
+    // Image du centre : choisie sur le PC ou trouvée sur Unsplash
+    bindHubImage() {
+        const fileInput = document.getElementById('wheel-hub-input');
+        this.hubThumb = document.getElementById('wheel-hub-thumb');
+        this.hubRemove = document.getElementById('wheel-hub-remove');
+        this.hubCredit = document.getElementById('wheel-hub-credit');
+
+        if (fileInput) {
+            fileInput.addEventListener('change', async () => {
+                const file = fileInput.files?.[0];
+                fileInput.value = '';
+                if (!file) return;
+                try {
+                    this.setHubImage({ src: await resizeImage(file, HUB_IMAGE_MAX_SIZE), credit: null });
+                } catch (error) {
+                    console.warn("Impossible de lire l'image du centre de la roue :", error);
+                }
+            });
+            this.hubThumb?.addEventListener('click', () => fileInput.click());
+            document.getElementById('wheel-hub-choose')?.addEventListener('click', () => fileInput.click());
+        }
+        this.hubRemove?.addEventListener('click', () => this.setHubImage(null));
+
+        const unsplashRoot = document.getElementById('wheel-hub-unsplash');
+        if (unsplashRoot) this.unsplash = new UnsplashPicker(unsplashRoot, { onPick: image => this.setHubImage(image) });
+
+        this.updateHubThumb();
+    }
+
+    setHubImage(image) {
+        this.hubImage = image;
+        saveHubImage(image);
+        if (image) this.loadImage(image.src);
+        this.updateHubThumb();
+    }
+
+    updateHubThumb() {
+        const image = this.hubImage;
+        if (this.hubThumb) {
+            if (image) this.hubThumb.src = image.src;
+            else this.hubThumb.removeAttribute('src');
+        }
+        if (this.hubRemove) this.hubRemove.hidden = !image;
+        if (this.hubCredit) {
+            this.hubCredit.replaceChildren();
+            this.hubCredit.hidden = !image?.credit;
+            if (image?.credit) {
+                const link = (text, href) => {
+                    const a = document.createElement('a');
+                    a.href = href;
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.textContent = text;
+                    return a;
+                };
+                this.hubCredit.append('Photo de ', link(image.credit.name, image.credit.url), ' sur ',
+                    link('Unsplash', 'https://unsplash.com/?utm_source=DailySCRUMPicker&utm_medium=referral'));
+            }
+        }
+    }
+
+    hubRadius() {
+        return this.radius * this.settings.hubSize / 100;
     }
 
     applySetting(key) {
@@ -357,7 +453,7 @@ export class WheelPicker {
             startX: e.clientX,
             startY: e.clientY,
             lastAngle: p.angle,
-            canRotate: p.dist > this.radius * 0.16,
+            canRotate: p.dist > this.hubRadius() + this.radius * 0.03,
             moved: 0,
             samples: [{ t: performance.now(), angle: this.angle }],
         };
@@ -625,7 +721,7 @@ export class WheelPicker {
             const color = colors[seg.color % colors.length];
             const avatar = this.avatarGeometry(seg, slice);
             const outer = avatar ? avatar.r - avatar.size / 2 - R * 0.04 : R - rimWidth - R * 0.05;
-            const inner = R * 0.17;
+            const inner = Math.max(R * 0.17, this.hubRadius() + R * 0.04);
             const maxWidth = outer - inner;
             if (maxWidth < 16) return;
 
@@ -829,7 +925,8 @@ export class WheelPicker {
         const R = this.radius;
         const cx = this.centerX;
         const cy = this.centerY;
-        const hubR = R * 0.13;
+        const hubR = this.hubRadius();
+        const image = this.hubImage && this.images.get(this.hubImage.src);
 
         ctx.save();
         ctx.beginPath();
@@ -840,6 +937,20 @@ export class WheelPicker {
         ctx.shadowOffsetY = 3;
         ctx.fill();
         ctx.restore();
+
+        if (image) {
+            // L'image remplace le bouton « LANCER », recadrée dans le cercle
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, hubR, 0, TWO_PI);
+            ctx.clip();
+            const scale = Math.max((hubR * 2) / image.width, (hubR * 2) / image.height);
+            const w = image.width * scale;
+            const h = image.height * scale;
+            ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
+            ctx.restore();
+            return;
+        }
 
         const g = ctx.createLinearGradient(cx, cy - hubR, cx, cy + hubR);
         g.addColorStop(0, '#ffffff');

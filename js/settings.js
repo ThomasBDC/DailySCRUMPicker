@@ -4,7 +4,8 @@
 // Tout nouveau paramètre persistant doit y être ajouté : il est alors automatiquement
 // inclus dans l'export et restauré par l'import (voir CLAUDE.md).
 
-import { WHEEL_DEFAULTS, WHEEL_SETTINGS_KEY } from './wheel.js';
+import { WHEEL_DEFAULTS, WHEEL_SETTINGS_KEY, HUB_IMAGE_KEY } from './wheel.js';
+import { UNSPLASH_KEY_STORAGE, parseUnsplashKey } from './unsplash.js';
 import { MUSIC_STORAGE_KEY, parseMusicSettings } from './music.js';
 import { exportSounds, parseSounds, replaceSounds } from './soundStore.js';
 import { PACK_SOUND_KEY } from './packSounds.js';
@@ -74,6 +75,19 @@ export const SETTINGS = [
         parse: parseWheelSettings
     },
     {
+        // Image au centre de la roue (PC en data URL, ou photo Unsplash avec son auteur)
+        name: 'wheelHubImage',
+        storageKey: HUB_IMAGE_KEY,
+        read: raw => JSON.parse(raw),
+        write: value => JSON.stringify(value),
+        parse: parseHubImage
+    },
+    {
+        name: 'unsplashAccessKey',
+        storageKey: UNSPLASH_KEY_STORAGE,
+        parse: parseUnsplashKey
+    },
+    {
         name: 'music',
         storageKey: MUSIC_STORAGE_KEY,
         read: raw => JSON.parse(raw),
@@ -98,6 +112,21 @@ function parseWheelSettings(value) {
         if (typeof value[key] === typeof WHEEL_DEFAULTS[key]) settings[key] = value[key];
     });
     return settings;
+}
+
+function parseHubImage(value) {
+    if (value === null) return null;
+    // Une simple URL d'image est aussi acceptée
+    if (typeof value === 'string') value = { src: value };
+    if (!value || typeof value !== 'object' || !isImageUrl(value.src)) throw new Error('Image du centre de la roue invalide');
+    const credit = value.credit;
+    const validCredit = credit && typeof credit === 'object'
+        && typeof credit.name === 'string' && credit.name.trim()
+        && typeof credit.url === 'string' && /^https:\/\//i.test(credit.url);
+    return {
+        src: value.src,
+        credit: validCredit ? { name: credit.name.trim().slice(0, 80), url: credit.url } : null
+    };
 }
 
 function isImageUrl(value) {
