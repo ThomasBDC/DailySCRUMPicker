@@ -4,6 +4,7 @@
 
 import { resizeImage } from './image.js';
 import { announcePick, announceRoundReset } from './participants.js';
+import { PackSounds } from './packSounds.js';
 
 // Niveaux de rareté, tirés au moment de la génération du paquet
 const RARITIES = [
@@ -67,6 +68,7 @@ const SWIPE_DISTANCE_RATIO = 0.28; // distance (en largeur de carte) pour valide
 const SWIPE_VELOCITY = 0.55;       // ou vitesse minimale (px/ms)
 const STACK_VISIBLE_DEPTH = 3;     // nombre de cartes visibles sous la carte du dessus
 const TILT_MAX_DEG = 14;
+const SUMMARY_ITEM_DELAY = 70;     // ms entre l'apparition de deux cartes du récapitulatif
 
 const DEFAULT_PACK_LABEL = 'DAILY SCRUM';
 const LABEL_STORAGE_KEY = 'dsp_pack_label';
@@ -159,8 +161,9 @@ function el(tag, className, text) {
 }
 
 export class PackOpeningPicker {
-    constructor(container) {
+    constructor(container, audioManager = null) {
         this.container = container;
+        this.sounds = new PackSounds(() => !!audioManager?.isMuted);
         this.participants = [];
         this.cards = [];
         this.slots = [];
@@ -208,9 +211,10 @@ export class PackOpeningPicker {
         document.addEventListener('keydown', this.onKeyDown);
     }
 
-    // Réglages du paquet (libellé + image) dans le panneau de configuration
+    // Réglages du paquet (libellé, image, bruitages) dans le panneau de configuration
     bindSettings() {
         const labelInput = document.getElementById('pack-label-input');
+        const soundInput = document.getElementById('pack-sound-input');
         const imageInput = document.getElementById('pack-image-input');
         this.imageThumb = document.getElementById('pack-image-thumb');
         this.imageRemove = document.getElementById('pack-image-remove');
@@ -241,6 +245,11 @@ export class PackOpeningPicker {
 
         this.imageRemove?.addEventListener('click', () => this.setImage(null));
         this.updateImageThumb();
+
+        if (soundInput) {
+            soundInput.checked = this.sounds.enabled;
+            soundInput.addEventListener('change', () => this.sounds.setEnabled(soundInput.checked));
+        }
     }
 
     setImage(dataUrl) {
@@ -500,6 +509,7 @@ export class PackOpeningPicker {
 
     nudgePack() {
         if (!this.packFloat) return;
+        this.sounds.nudge();
         this.packFloat.classList.remove('nudge');
         void this.packFloat.offsetWidth;
         this.packFloat.classList.add('nudge');
@@ -522,8 +532,12 @@ export class PackOpeningPicker {
     updateCut(e) {
         const { rect } = this.cut;
         const x = clamp(e.clientX - rect.left, 0, rect.width);
+        const before = this.cut.maxX - this.cut.minX;
         this.cut.minX = Math.min(this.cut.minX, x);
         this.cut.maxX = Math.max(this.cut.maxX, x);
+        // Le papier ne crisse que quand la découpe avance
+        const grown = this.cut.maxX - this.cut.minX - before;
+        if (grown > 0) this.sounds.tear(grown / 12);
         this.renderCut();
         if ((this.cut.maxX - this.cut.minX) / rect.width >= CUT_THRESHOLD) {
             this.cut = null;
@@ -555,6 +569,7 @@ export class PackOpeningPicker {
         void this.cutGlow.offsetWidth;
         this.cutGlow.style.transition = 'width .45s ease-in';
         this.cutGlow.style.width = '100%';
+        this.sounds.tearSweep(0.45);
         this.later(() => this.tearPack(), 450);
     }
 
@@ -572,8 +587,10 @@ export class PackOpeningPicker {
         pack.classList.remove('cutting');
         pack.classList.add('opened');
         this.hint.textContent = '';
+        this.sounds.open();
 
         this.later(() => {
+            this.sounds.cardsOut();
             this.buildStack();
             pack.classList.add('dropping');
         }, 450);
@@ -707,6 +724,7 @@ export class PackOpeningPicker {
         const card = this.cards[this.index];
         if (!card) return;
         announcePick(card.participant.id);
+        this.sounds.reveal(card.rarity.id);
 
         this.root.dataset.glow = card.rarity.shiny ? card.rarity.id : '';
         this.updateProgress();
@@ -834,6 +852,7 @@ export class PackOpeningPicker {
         if (!slot || !cardEl) return;
 
         this.revealNext();
+        this.sounds.swipe(direction);
         slot.classList.add('flying');
         cardEl.classList.remove('nudge');
         cardEl.style.transition = 'transform .5s cubic-bezier(.4, 0, .8, .6), opacity .5s ease';
@@ -870,7 +889,7 @@ export class PackOpeningPicker {
         const grid = el('div', 'summary-grid');
         this.cards.forEach((card, i) => {
             const item = el('div', 'summary-item');
-            item.style.animationDelay = `${i * 70}ms`;
+            item.style.animationDelay = `${i * SUMMARY_ITEM_DELAY}ms`;
             const mini = el('div', 'summary-card');
             mini.append(el('span', 'summary-rank', String(card.order)), this.buildCard(card, false));
             item.append(
@@ -891,12 +910,14 @@ export class PackOpeningPicker {
             button
         );
         this.summary.classList.add('visible');
+        this.sounds.summary(this.cards.length, SUMMARY_ITEM_DELAY);
     }
 
     // ---------- Entrées ----------
 
     handlePointerDown(e) {
         if (e.button !== 0) return;
+        this.sounds.unlock();
         if (this.state === 'idle' && this.packEl) {
             this.startCut(e);
         } else if (this.state === 'cards') {
@@ -929,6 +950,7 @@ export class PackOpeningPicker {
         if (!['ArrowRight', 'ArrowLeft', ' ', 'Enter'].includes(e.key)) return;
 
         e.preventDefault();
+        this.sounds.unlock();
         if (this.state === 'idle') {
             this.autoCut();
         } else if (this.state === 'cards' && !this.drag) {

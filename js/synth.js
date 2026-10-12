@@ -8,7 +8,7 @@ const LOOKAHEAD = 0.25; // s de notes programmées à l'avance
 
 let noiseBuffer = null;
 
-function noise(ctx) {
+export function noise(ctx) {
     if (!noiseBuffer || noiseBuffer.sampleRate !== ctx.sampleRate) {
         const length = ctx.sampleRate;
         noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
@@ -31,7 +31,7 @@ function envelope(ctx, t, peak, attack, release) {
     return gain;
 }
 
-function tone(ctx, out, { t, midi, type = 'sine', peak = 0.2, attack = 0.005, release = 0.2, cutoff = null, detune = 0 }) {
+export function tone(ctx, out, { t, midi, type = 'sine', peak = 0.2, attack = 0.005, release = 0.2, cutoff = null, detune = 0 }) {
     const osc = ctx.createOscillator();
     osc.type = type;
     osc.frequency.value = freq(midi);
@@ -50,7 +50,7 @@ function tone(ctx, out, { t, midi, type = 'sine', peak = 0.2, attack = 0.005, re
     osc.stop(t + attack + release + 0.05);
 }
 
-function hit(ctx, out, { t, peak = 0.3, release = 0.08, type = 'highpass', cutoff = 6000, q = 0.8 }) {
+export function hit(ctx, out, { t, peak = 0.3, release = 0.08, type = 'highpass', cutoff = 6000, q = 0.8 }) {
     const src = noise(ctx);
     const filter = ctx.createBiquadFilter();
     filter.type = type;
@@ -62,7 +62,7 @@ function hit(ctx, out, { t, peak = 0.3, release = 0.08, type = 'highpass', cutof
     src.stop(t + release + 0.05);
 }
 
-function kick(ctx, out, t, peak = 0.9) {
+export function kick(ctx, out, t, peak = 0.9) {
     const osc = ctx.createOscillator();
     osc.frequency.setValueAtTime(150, t);
     osc.frequency.exponentialRampToValueAtTime(40, t + 0.18);

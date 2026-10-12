@@ -7,6 +7,7 @@
 import { WHEEL_DEFAULTS, WHEEL_SETTINGS_KEY } from './wheel.js';
 import { MUSIC_STORAGE_KEY, parseMusicSettings } from './music.js';
 import { exportSounds, parseSounds, replaceSounds } from './soundStore.js';
+import { PACK_SOUND_KEY } from './packSounds.js';
 
 export const PICKER_TYPES = ['3d', 'wheel', 'taptaup', 'pack'];
 
@@ -51,6 +52,18 @@ export const SETTINGS = [
             if (value === null) return null;
             if (!isImageUrl(value)) throw new Error('Image du paquet invalide');
             return value;
+        }
+    },
+    {
+        // Bruitages du pack opening, activés par défaut : seul « off » est stocké
+        name: 'packSound',
+        storageKey: PACK_SOUND_KEY,
+        read: raw => raw !== 'off',
+        write: value => (value ? 'on' : 'off'),
+        parse: value => {
+            if (value === null) return null;
+            if (typeof value !== 'boolean') throw new Error('Réglage des bruitages du paquet invalide');
+            return value ? null : false;
         }
     },
     {

@@ -99,7 +99,7 @@ class Game {
                 this.wheel.canvas.style.display = 'none';
             }
         } else if (this.currentPicker === 'pack') {
-            this.pack = new PackOpeningPicker(document.body);
+            this.pack = new PackOpeningPicker(document.body, this.audioManager);
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
             }
@@ -177,7 +177,7 @@ class Game {
                 this.taptaup.renderer.domElement.style.display = 'none';
             }
             if (!this.pack) {
-                this.pack = new PackOpeningPicker(document.body);
+                this.pack = new PackOpeningPicker(document.body, this.audioManager);
             } else {
                 this.pack.show();
             }
@@ -267,7 +267,7 @@ class Game {
 
         if (this.currentPicker === 'pack') {
             if (!this.pack) {
-                this.pack = new PackOpeningPicker(document.body);
+                this.pack = new PackOpeningPicker(document.body, this.audioManager);
             }
             this.pack.setParticipants(participants);
             this.pack.reset();
