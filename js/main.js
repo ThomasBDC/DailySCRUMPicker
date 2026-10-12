@@ -48,8 +48,10 @@ class Game {
         this._lastTick = performance.now();
         
         // Ajouter le gestionnaire pour le changement de type de picker
-        document.getElementById('picker-type').addEventListener('change', (e) => {
-            this.switchPicker(e.target.value);
+        document.querySelectorAll('input[name="picker-type"]').forEach((radio) => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) this.switchPicker(e.target.value);
+            });
         });
 
         // Ajouter le gestionnaire pour le bouton mute
@@ -59,10 +61,10 @@ class Game {
     }
 
     init() {
-        // Mettre à jour le select avec le type de picker sauvegardé
-        const pickerSelect = document.getElementById('picker-type');
-        if (pickerSelect) {
-            pickerSelect.value = this.currentPicker;
+        // Cocher le type de picker sauvegardé
+        const pickerRadio = document.querySelector(`input[name="picker-type"][value="${this.currentPicker}"]`);
+        if (pickerRadio) {
+            pickerRadio.checked = true;
         }
         this.updatePickerSettings();
         
@@ -732,6 +734,7 @@ class Game {
         const muteButton = document.getElementById('mute-button');
         const muteIcon = document.getElementById('mute-icon');
         
+        muteButton.setAttribute('aria-label', isMuted ? 'Remettre le son' : 'Couper le son');
         if (isMuted) {
             muteButton.classList.add('muted');
             muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';

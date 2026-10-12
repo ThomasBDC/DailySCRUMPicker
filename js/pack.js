@@ -2,6 +2,8 @@
 // on découpe le haut du booster, puis on fait défiler les cartes (une par participant)
 // en les swipant. L'ordre des cartes = l'ordre de passage.
 
+import { resizeImage } from './image.js';
+
 // Niveaux de rareté, tirés au moment de la génération du paquet
 const RARITIES = [
     { id: 'common',   label: 'Commune',     symbol: '◆',   weight: 45, hp: [60, 90],   stage: 'De base',  moves: 1, sparkles: 0 },
@@ -140,28 +142,6 @@ function writeStorage(key, value) {
     }
 }
 
-// Réduit l'image pour qu'elle tienne dans le localStorage
-function resizeImage(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = reject;
-        reader.onload = () => {
-            const img = new Image();
-            img.onerror = reject;
-            img.onload = () => {
-                const scale = Math.min(1, IMAGE_MAX_SIZE / Math.max(img.width, img.height));
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.max(1, Math.round(img.width * scale));
-                canvas.height = Math.max(1, Math.round(img.height * scale));
-                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/webp', 0.9));
-            };
-            img.src = reader.result;
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
 // Taille du titre selon la longueur du libellé (en fraction de largeur de carte)
 function titleScale(label) {
     const longestWord = Math.max(...label.split(/\s+/).map(word => word.length));
@@ -249,7 +229,7 @@ export class PackOpeningPicker {
                 imageInput.value = '';
                 if (!file) return;
                 try {
-                    this.setImage(await resizeImage(file));
+                    this.setImage(await resizeImage(file, IMAGE_MAX_SIZE));
                 } catch (error) {
                     console.warn("Impossible de lire l'image du paquet :", error);
                 }

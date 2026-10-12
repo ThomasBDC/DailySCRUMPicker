@@ -2,84 +2,150 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>DailySCRUMPicker 3D</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/wheel.css">
     <link rel="stylesheet" href="styles/modal.css">
     <link rel="stylesheet" href="styles/pack.css">
 </head>
 <body>
-    <div id="info">Configurez les participants puis cliquez sur la scène pour lancer !</div>
-    
-    <!-- Bouton pour ouvrir le panneau de configuration -->
-    <button id="config-button" class="config-button">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-        Configuration
-    </button>
+    <div id="info" class="hud-pill">Configurez les participants puis cliquez sur la scène pour lancer !</div>
 
-    <!-- Bouton pour couper le son -->
-    <button id="mute-button" class="mute-button">
-        <svg id="mute-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-        </svg>
-    </button>
+    <div class="top-actions">
+        <!-- Bouton pour couper le son -->
+        <button id="mute-button" class="hud-button hud-button-icon" title="Couper / remettre le son" aria-label="Couper le son">
+            <svg id="mute-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+        </button>
 
-    <!-- Panneau offcanvas  -->
+        <!-- Bouton pour ouvrir le panneau de configuration -->
+        <button id="config-button" class="hud-button config-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span class="config-button-label">Participants</span>
+            <span id="config-count" class="hud-badge">0</span>
+        </button>
+    </div>
+
+    <!-- Panneau offcanvas -->
     <div id="offcanvas-overlay" class="offcanvas-overlay"></div>
-    <div id="setup-form" class="offcanvas-panel">
-        <div class="offcanvas-header">
-            <h2>Configuration des participants</h2>
-            <button id="close-config" class="close-button">×</button>
-        </div>
-        <div class="offcanvas-content">
-            <div id="participants-list">
-                <div class="participant-row">
-                    <input type="text" placeholder="Nom du participant" value="Participant 1">
-                    <img class="face-thumb" src="" alt="" title="Choisir une photo">
-                    <input type="file" class="face-input" accept="image/*">
-                    <label style="color:#000; font-family: Arial; font-size: 14px;">
-                        <input type="checkbox" class="display-input" checked> Afficher
-                    </label>
-                    <button class="remove-participant">×</button>
-                </div>
+    <aside id="setup-form" class="offcanvas-panel" aria-label="Configuration">
+        <header class="offcanvas-header">
+            <div>
+                <h2>Configuration</h2>
+                <p class="offcanvas-subtitle">Les changements s'appliquent immédiatement</p>
             </div>
-            <div class="picker-type-selector">
-                <label for="picker-type">Type de sélecteur :</label>
-                <select id="picker-type">
-                    <option value="3d">3D (Classique)</option>
-                    <option value="wheel">Roue de la fortune</option>
-                    <option value="taptaup">Tap Taupe</option>
-                    <option value="pack">Pack opening</option>
-                </select>
-                <!-- Réglages propres au mode Pack opening -->
-                <div id="pack-settings" class="pack-settings" hidden>
-                    <label for="pack-label-input">Libellé du paquet :</label>
-                    <input type="text" id="pack-label-input" maxlength="40" placeholder="DAILY SCRUM">
-                    <span class="pack-settings-label">Image du paquet :</span>
-                    <div class="pack-image-row">
-                        <img id="pack-image-thumb" class="face-thumb" alt="" title="Choisir une image">
-                        <input type="file" id="pack-image-input" class="face-input" accept="image/*">
-                        <button type="button" id="pack-image-choose">Choisir une image</button>
-                        <button type="button" id="pack-image-remove" class="secondary-button">Retirer</button>
+            <button id="close-config" class="icon-button" title="Fermer (Échap)" aria-label="Fermer">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+            </button>
+        </header>
+
+        <nav class="panel-tabs" role="tablist">
+            <button type="button" class="panel-tab active" data-tab="participants" role="tab" aria-selected="true">
+                Participants <span id="participants-count" class="tab-badge">0</span>
+            </button>
+            <button type="button" class="panel-tab" data-tab="mode" role="tab" aria-selected="false">Mode de jeu</button>
+        </nav>
+
+        <div class="offcanvas-content">
+            <!-- Onglet Participants -->
+            <section class="panel-section" data-panel="participants">
+                <div id="game-active-message" class="game-active-message" hidden>
+                    <span class="live-dot"></span>
+                    Partie en cours : vous pouvez ajuster la liste en direct
+                </div>
+
+                <form id="quick-add" class="quick-add" autocomplete="off">
+                    <input id="quick-add-input" type="text" placeholder="Ajouter un participant…" maxlength="40" aria-label="Nom du participant à ajouter">
+                    <button type="submit" id="add-participant" class="btn btn-primary btn-square" title="Ajouter (Entrée)" aria-label="Ajouter">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                    </button>
+                </form>
+
+                <div class="list-toolbar">
+                    <span id="presence-summary" class="presence-summary"></span>
+                    <div class="toolbar-actions">
+                        <button type="button" id="select-all" class="btn-link">Tous présents</button>
+                        <button type="button" id="select-none" class="btn-link">Tous absents</button>
                     </div>
                 </div>
-            </div>
-            <div class="offcanvas-actions">
-                <button id="add-participant">Ajouter un participant</button>
-                <button id="start-game">Commencer</button>
-                <button id="restart-game" class="secondary-button">Relancer la partie</button>
+
+                <ul id="participants-list" class="participants-list"></ul>
+                <p id="participants-empty" class="empty-state" hidden>Aucun participant pour l'instant.<br>Tapez un nom ci-dessus puis Entrée.</p>
+
                 <div class="import-export-actions">
-                    <button id="export-participants" class="secondary-button" title="Télécharger la configuration des participants">Exporter</button>
-                    <button id="import-participants" class="secondary-button" title="Charger une configuration de participants">Importer</button>
+                    <button type="button" id="export-participants" class="btn btn-ghost btn-sm" title="Télécharger la configuration des participants">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path></svg>
+                        Exporter
+                    </button>
+                    <button type="button" id="import-participants" class="btn btn-ghost btn-sm" title="Charger une configuration de participants">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
+                        Importer
+                    </button>
                     <input type="file" id="import-participants-input" accept="application/json,.json" hidden>
                 </div>
-            </div>
+            </section>
+
+            <!-- Onglet Mode de jeu -->
+            <section class="panel-section" data-panel="mode" hidden>
+                <div class="picker-type-selector" role="radiogroup" aria-label="Type de sélecteur">
+                    <label class="mode-card">
+                        <input type="radio" name="picker-type" value="3d">
+                        <span class="mode-icon">🏃</span>
+                        <span class="mode-text"><strong>3D classique</strong><small>Tout le monde court, le projecteur choisit</small></span>
+                    </label>
+                    <label class="mode-card">
+                        <input type="radio" name="picker-type" value="wheel">
+                        <span class="mode-icon">🎡</span>
+                        <span class="mode-text"><strong>Roue de la fortune</strong><small>Un tour de roue, un gagnant</small></span>
+                    </label>
+                    <label class="mode-card">
+                        <input type="radio" name="picker-type" value="taptaup">
+                        <span class="mode-icon">🔨</span>
+                        <span class="mode-text"><strong>Tap Taupe</strong><small>Les participants sortent de leur trou</small></span>
+                    </label>
+                    <label class="mode-card">
+                        <input type="radio" name="picker-type" value="pack">
+                        <span class="mode-icon">🃏</span>
+                        <span class="mode-text"><strong>Pack opening</strong><small>Ouvrez un booster, l'ordre des cartes fait l'ordre de passage</small></span>
+                    </label>
+                </div>
+
+                <!-- Réglages propres au mode Pack opening -->
+                <div id="pack-settings" class="pack-settings" hidden>
+                    <h3 class="section-title">Réglages du paquet</h3>
+                    <label for="pack-label-input" class="field-label">Libellé du paquet</label>
+                    <input type="text" id="pack-label-input" class="text-field" maxlength="40" placeholder="DAILY SCRUM">
+                    <span class="field-label">Image du paquet</span>
+                    <div class="pack-image-row">
+                        <img id="pack-image-thumb" class="pack-image-thumb" alt="" title="Choisir une image">
+                        <input type="file" id="pack-image-input" accept="image/*" hidden>
+                        <button type="button" id="pack-image-choose" class="btn btn-secondary btn-sm">Choisir une image</button>
+                        <button type="button" id="pack-image-remove" class="btn btn-ghost btn-sm">Retirer</button>
+                    </div>
+                </div>
+            </section>
         </div>
-    </div>
+
+        <footer class="offcanvas-footer">
+            <button type="button" id="restart-game" class="btn btn-secondary" title="Remettre tous les participants présents en jeu">Relancer la partie</button>
+            <button type="button" id="start-game" class="btn btn-primary">Commencer</button>
+        </footer>
+
+        <div id="panel-toast" class="panel-toast" role="status" aria-live="polite" hidden>
+            <span class="panel-toast-text"></span>
+            <button type="button" class="panel-toast-action">Annuler</button>
+        </div>
+    </aside>
 
     <div id="name-display"></div>
     <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>

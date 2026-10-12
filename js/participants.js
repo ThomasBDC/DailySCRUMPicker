@@ -1,3 +1,5 @@
+import { resizeImage } from './image.js';
+
 export class Participant {
     constructor(name, faceUrl = null, display = true) {
         this.name = name;
@@ -7,6 +9,10 @@ export class Participant {
     }
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const TOAST_DURATION = 5000; // ms pendant lesquels une suppression peut être annulée
+const FACE_MAX_SIZE = 400; // px, la photo est réduite avant d'être stockée
+
 export class ParticipantManager {
     constructor() {
         this.participants = [];
@@ -14,9 +20,14 @@ export class ParticipantManager {
         this.storageKey = 'dsp_participants_v2';
         this.setupFormElement = document.getElementById('setup-form');
         this.overlayElement = document.getElementById('offcanvas-overlay');
+        this.listElement = document.getElementById('participants-list');
+        this.quickAddInput = document.getElementById('quick-add-input');
+        this.toastElement = document.getElementById('panel-toast');
         this.game = null; // Référence vers l'instance du jeu
         this.updateTimeout = null; // Pour éviter les mises à jour trop fréquentes
-        
+        this.toastTimeout = null;
+        this.toastAction = null;
+
         // S'assurer que le panneau est masqué au démarrage
         if (this.setupFormElement) {
             this.setupFormElement.classList.remove('active');
@@ -24,9 +35,10 @@ export class ParticipantManager {
         if (this.overlayElement) {
             this.overlayElement.classList.remove('active');
         }
-        
+
         this.setupListeners();
         this.loadPreferences();
+        this.refreshSummary();
     }
 
     setGameReference(game) {
@@ -34,76 +46,97 @@ export class ParticipantManager {
     }
 
     setupListeners() {
-        // Bouton pour ouvrir le panneau de configuration
+        // Ouverture / fermeture du panneau
         document.getElementById('config-button').addEventListener('click', () => this.openConfigPanel());
-
-        // Bouton pour fermer le panneau
         document.getElementById('close-config').addEventListener('click', () => this.closeConfigPanel());
-
-        // Fermer en cliquant sur l'overlay
         this.overlayElement.addEventListener('click', (e) => {
             if (e.target === this.overlayElement) {
                 this.closeConfigPanel();
             }
         });
 
-        // Bouton pour ajouter un participant
-        document.getElementById('add-participant').addEventListener('click', () => this.addParticipantRow());
+        // Onglets
+        this.setupFormElement.querySelectorAll('.panel-tab').forEach((tab) => {
+            tab.addEventListener('click', () => this.showTab(tab.dataset.tab));
+        });
 
-        // Bouton pour démarrer le jeu
+        // Ajout rapide : on tape un nom puis Entrée
+        document.getElementById('quick-add').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = this.quickAddInput.value.trim();
+            const row = this.addParticipantRow(name || null);
+            this.quickAddInput.value = '';
+            this.scheduleUpdate();
+            row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            if (name) {
+                this.quickAddInput.focus();
+            } else {
+                // Sans nom saisi, on donne directement la main sur le nom par défaut
+                const nameInput = row.querySelector('.participant-name');
+                nameInput.focus();
+                nameInput.select();
+            }
+        });
+
+        // Tous présents / tous absents
+        document.getElementById('select-all').addEventListener('click', () => this.setAllPresent(true));
+        document.getElementById('select-none').addEventListener('click', () => this.setAllPresent(false));
+
+        // Boutons de partie
         document.getElementById('start-game').addEventListener('click', () => this.startGame());
-
-        // Bouton pour relancer la partie
         document.getElementById('restart-game').addEventListener('click', () => this.restartGame());
 
-        // Gestion des boutons de suppression (délégation d'événements)
-        document.getElementById('participants-list').addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-participant')) {
-                this.removeParticipantRow(e.target);
-                this.savePreferences();
+        // Délégation d'événements sur la liste
+        this.listElement.addEventListener('click', (e) => {
+            const row = e.target.closest('.participant-row');
+            if (!row) return;
+            if (e.target.closest('.remove-participant')) {
+                this.removeParticipantRow(row);
+            } else if (e.target.closest('.avatar')) {
+                row.querySelector('.face-input')?.click();
             }
         });
 
-        // Sauvegarde à la volée des noms/flags saisis
-        document.getElementById('participants-list').addEventListener('input', (e) => {
-            if (e.target && (e.target.matches('input[type="text"]') || e.target.matches('input[type="checkbox"]'))) {
-                this.savePreferences();
-                // Mettre à jour les participants immédiatement
-                clearTimeout(this.updateTimeout);
-                this.updateTimeout = setTimeout(() => {
-                    this.updateParticipantsInGame();
-                }, 100);
+        this.listElement.addEventListener('input', (e) => {
+            if (e.target.matches('.participant-name')) {
+                this.updateAvatar(e.target.closest('.participant-row'));
+                this.scheduleUpdate();
             }
         });
 
-        // Délégation: clic sur la vignette ouvre l'input file associé
-        document.getElementById('participants-list').addEventListener('click', (e) => {
-            if (e.target && e.target.matches('img.face-thumb')) {
-                const row = e.target.closest('.participant-row');
-                const fileInput = row?.querySelector('input[type="file"].face-input');
-                fileInput?.click();
+        this.listElement.addEventListener('keydown', (e) => {
+            // Entrée valide le nom saisi
+            if (e.key === 'Enter' && e.target.matches('.participant-name')) {
+                e.preventDefault();
+                e.target.blur();
             }
         });
 
-        // Délégation: quand un fichier est choisi, on met à jour la vignette et on sauvegarde
-        document.getElementById('participants-list').addEventListener('change', (e) => {
-            if (e.target && e.target.matches('input[type="file"].face-input')) {
-                const row = e.target.closest('.participant-row');
-                const thumb = row?.querySelector('img.face-thumb');
+        this.listElement.addEventListener('change', async (e) => {
+            const row = e.target.closest('.participant-row');
+            if (!row) return;
+            if (e.target.matches('.display-input')) {
+                row.classList.toggle('is-absent', !e.target.checked);
+                this.scheduleUpdate();
+            } else if (e.target.matches('.face-input')) {
                 const file = e.target.files?.[0];
+                e.target.value = '';
                 if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                    if (thumb) thumb.src = reader.result;
-                    this.savePreferences();
-                    // Mettre à jour les participants immédiatement
-                    clearTimeout(this.updateTimeout);
-                    this.updateTimeout = setTimeout(() => {
-                        this.updateParticipantsInGame();
-                    }, 100);
-                };
-                reader.readAsDataURL(file);
+                try {
+                    row.dataset.faceUrl = await resizeImage(file, FACE_MAX_SIZE);
+                    this.updateAvatar(row);
+                    this.scheduleUpdate();
+                } catch (error) {
+                    console.warn('Impossible de lire la photo :', error);
+                }
             }
+        });
+
+        // Annulation depuis le toast
+        this.toastElement.querySelector('.panel-toast-action').addEventListener('click', () => {
+            const action = this.toastAction;
+            this.hideToast();
+            action?.();
         });
 
         // Export / import de la configuration des participants
@@ -126,14 +159,10 @@ export class ParticipantManager {
     }
 
     openConfigPanel() {
-        if (this.setupFormElement) {
-            this.setupFormElement.classList.add('active');
-        }
-        if (this.overlayElement) {
-            this.overlayElement.classList.add('active');
-        }
+        this.setupFormElement?.classList.add('active');
+        this.overlayElement?.classList.add('active');
         document.body.style.overflow = 'hidden';
-        
+
         // Afficher un message informatif si le jeu est actif
         if (this.game && this.game.persons.length > 0) {
             this.showGameActiveMessage();
@@ -141,58 +170,160 @@ export class ParticipantManager {
     }
 
     closeConfigPanel() {
-        if (this.setupFormElement) {
-            this.setupFormElement.classList.remove('active');
-        }
-        if (this.overlayElement) {
-            this.overlayElement.classList.remove('active');
-        }
+        this.setupFormElement?.classList.remove('active');
+        this.overlayElement?.classList.remove('active');
         document.body.style.overflow = '';
-        
-        // Masquer le message informatif
-        const messageEl = document.getElementById('game-active-message');
-        if (messageEl) {
-            messageEl.style.display = 'none';
-        }
+        this.hideGameActiveMessage();
+        // Le panneau fermé, une suppression ne peut plus être annulée
+        this.hideToast();
+        document.activeElement?.blur();
     }
 
     isConfigPanelOpen() {
         return this.setupFormElement && this.setupFormElement.classList.contains('active');
     }
 
+    showTab(name) {
+        this.setupFormElement.querySelectorAll('.panel-tab').forEach((tab) => {
+            const selected = tab.dataset.tab === name;
+            tab.classList.toggle('active', selected);
+            tab.setAttribute('aria-selected', String(selected));
+        });
+        this.setupFormElement.querySelectorAll('.panel-section').forEach((section) => {
+            section.hidden = section.dataset.panel !== name;
+        });
+    }
+
     addParticipantRow(name, faceUrl = null, display = true) {
-        const list = document.getElementById('participants-list');
-        const row = document.createElement('div');
+        const row = document.createElement('li');
         row.className = 'participant-row';
-        const placeholder = `Participant ${list.children.length + 1}`;
-        row.innerHTML = `
-            <input type="text" placeholder="Nom du participant" value="${name ? this.#escapeHtml(name) : placeholder}">
-            <img class="face-thumb" src="${faceUrl ? this.#escapeHtml(faceUrl) : ''}" alt="" title="Choisir une photo">
-            <input type="file" class="face-input" accept="image/*">
-            <label style="color:#000; font-family: Arial; font-size: 14px;">
-                <input type="checkbox" class="display-input" ${display ? 'checked' : ''}> Afficher
-            </label>
-            <button class="remove-participant">×</button>
-        `;
-        list.appendChild(row);
-        
-        // Mettre à jour les participants si la case est cochée
-        if (display) {
-            setTimeout(() => {
-                this.updateParticipantsInGame();
-            }, 50);
+        row.classList.toggle('is-absent', !display);
+        row.dataset.faceUrl = faceUrl || '';
+
+        const avatar = document.createElement('button');
+        avatar.type = 'button';
+        avatar.className = 'avatar';
+        avatar.title = 'Changer la photo';
+        avatar.setAttribute('aria-label', 'Changer la photo');
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.className = 'face-input';
+        fileInput.accept = 'image/*';
+        fileInput.hidden = true;
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'participant-name';
+        nameInput.placeholder = 'Nom du participant';
+        nameInput.maxLength = 40;
+        nameInput.value = name || `Participant ${this.listElement.children.length + 1}`;
+        nameInput.setAttribute('aria-label', 'Nom du participant');
+
+        const toggle = document.createElement('label');
+        toggle.className = 'switch';
+        toggle.title = 'Présent / absent';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'display-input';
+        checkbox.checked = display;
+        checkbox.setAttribute('aria-label', 'Présent');
+        const track = document.createElement('span');
+        track.className = 'switch-track';
+        toggle.append(checkbox, track);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'icon-button remove-participant';
+        remove.title = 'Supprimer';
+        remove.setAttribute('aria-label', 'Supprimer');
+        remove.appendChild(this.#icon('M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6'));
+
+        row.append(avatar, fileInput, nameInput, toggle, remove);
+        this.listElement.appendChild(row);
+        this.updateAvatar(row);
+        return row;
+    }
+
+    // Photo si disponible, sinon initiales sur une couleur dérivée du nom
+    updateAvatar(row) {
+        const avatar = row.querySelector('.avatar');
+        const name = row.querySelector('.participant-name').value.trim();
+        const faceUrl = row.dataset.faceUrl;
+        avatar.replaceChildren();
+        if (faceUrl) {
+            const img = document.createElement('img');
+            img.className = 'face-thumb';
+            img.src = faceUrl;
+            img.alt = '';
+            avatar.appendChild(img);
+            avatar.style.removeProperty('--avatar-hue');
+        } else {
+            const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
+            avatar.textContent = initials || '?';
+            let hash = 0;
+            for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+            avatar.style.setProperty('--avatar-hue', hash);
         }
     }
 
-    removeParticipantRow(button) {
-        const list = document.getElementById('participants-list');
-        if (list.children.length > 1) {
-            button.closest('.participant-row').remove();
-            // Mettre à jour les participants après suppression
-            setTimeout(() => {
-                this.updateParticipantsInGame();
-            }, 50);
-        }
+    removeParticipantRow(row) {
+        const data = this.#readRow(row, 0);
+        const nextRow = row.nextElementSibling;
+        row.remove();
+        this.scheduleUpdate();
+
+        this.showToast(`${data.name} supprimé`, () => {
+            const restored = this.addParticipantRow(data.name, data.faceUrl, data.display);
+            if (nextRow?.parentElement === this.listElement) {
+                this.listElement.insertBefore(restored, nextRow);
+            }
+            this.scheduleUpdate();
+        });
+    }
+
+    setAllPresent(present) {
+        this.listElement.querySelectorAll('.participant-row').forEach((row) => {
+            row.querySelector('.display-input').checked = present;
+            row.classList.toggle('is-absent', !present);
+        });
+        this.scheduleUpdate();
+    }
+
+    // Sauvegarde puis applique la liste au jeu (regroupe les modifications rapprochées)
+    scheduleUpdate() {
+        this.savePreferences();
+        this.refreshSummary();
+        clearTimeout(this.updateTimeout);
+        this.updateTimeout = setTimeout(() => {
+            this.updateParticipantsInGame();
+        }, 100);
+    }
+
+    refreshSummary() {
+        const all = this.#readRows();
+        const present = all.filter(p => p.display).length;
+        document.getElementById('participants-count').textContent = String(all.length);
+        document.getElementById('config-count').textContent = String(present);
+        document.getElementById('presence-summary').textContent = all.length
+            ? `${present} présent${present > 1 ? 's' : ''} sur ${all.length}`
+            : '';
+        document.getElementById('participants-empty').hidden = all.length > 0;
+        this.setupFormElement.querySelector('.list-toolbar').hidden = all.length === 0;
+    }
+
+    showToast(text, action) {
+        clearTimeout(this.toastTimeout);
+        this.toastAction = action;
+        this.toastElement.querySelector('.panel-toast-text').textContent = text;
+        this.toastElement.hidden = false;
+        this.toastTimeout = setTimeout(() => this.hideToast(), TOAST_DURATION);
+    }
+
+    hideToast() {
+        clearTimeout(this.toastTimeout);
+        this.toastAction = null;
+        this.toastElement.hidden = true;
     }
 
     async startGame() {
@@ -204,9 +335,9 @@ export class ParticipantManager {
             }
 
             this.participants = participants.filter(p => p.display !== false);
-            this.savePreferences(participants);
+            this.savePreferences();
             this.closeConfigPanel();
-            
+
             // Si les participants ne sont pas encore affichés, les créer
             if (this.game && this.game.persons.length === 0) {
                 this.game.createPersons(this.participants);
@@ -214,7 +345,7 @@ export class ParticipantManager {
                 // Sinon, juste réinitialiser le jeu
                 this.game.resetGame();
             }
-            
+
             const event = new CustomEvent('participantsReady', { detail: this.participants });
             window.dispatchEvent(event);
         } catch (error) {
@@ -225,70 +356,32 @@ export class ParticipantManager {
 
     async restartGame() {
         if (!this.game) return;
-        
+
         try {
             // Récupérer les participants actuels du formulaire
             const participants = await this.getParticipantsFromForm();
             this.participants = participants.filter(p => p.display !== false);
-            
+
             // Réinitialiser complètement le jeu
             this.game.resetGame();
             this.game.createPersons(this.participants);
             this.closeConfigPanel();
-            
-            // Masquer le message informatif car le jeu est réinitialisé
-            const messageEl = document.getElementById('game-active-message');
-            if (messageEl) {
-                messageEl.style.display = 'none';
-            }
         } catch (error) {
             console.error('Erreur lors du redémarrage du jeu:', error);
         }
     }
 
     getParticipantsFromForm() {
-        const list = document.getElementById('participants-list');
-        const rows = Array.from(list.getElementsByClassName('participant-row'));
-
-        const readAsDataURL = (file) => new Promise((resolve) => {
-            if (!file) return resolve(null);
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = () => resolve(null);
-            reader.readAsDataURL(file);
-        });
-
-        const promises = rows.map(async (row, idx) => {
-            const nameInput = row.querySelector('input[type="text"]');
-            const fileInput = row.querySelector('input[type="file"]');
-            const displayInput = row.querySelector('input[type="checkbox"]');
-            const thumb = row.querySelector('img.face-thumb');
-            const name = (nameInput?.value || '').trim() || `Participant ${idx + 1}`;
-            const file = fileInput?.files?.[0] || null;
-            // Priorité: fichier choisi sinon vignette existante (depuis localStorage)
-            const faceUrl = file ? await readAsDataURL(file) : (thumb?.src || null);
-            const display = !!(displayInput?.checked);
-            return new Participant(name, faceUrl, display);
-        });
-
-        return Promise.all(promises);
+        return Promise.resolve(this.#readRows().map(p => new Participant(p.name, p.faceUrl, p.display)));
     }
 
     // Méthode pour mettre à jour les participants en temps réel
     async updateParticipantsInGame() {
         if (!this.game) return;
-        
+
         try {
             const participants = await this.getParticipantsFromForm();
-            const activeParticipants = participants.filter(p => p.display !== false);
-            
-            // Sauvegarder les préférences
-            this.savePreferences(participants);
-            
-            // Mettre à jour les participants actifs
-            this.participants = activeParticipants;
-            
-            // Mettre à jour le jeu avec les nouveaux participants
+            this.participants = participants.filter(p => p.display !== false);
             this.game.updateParticipants(this.participants);
         } catch (error) {
             console.error('Erreur lors de la mise à jour des participants:', error);
@@ -300,17 +393,17 @@ export class ParticipantManager {
         if (newParticipants.length !== this.participants.length) {
             return true;
         }
-        
+
         // Vérifier si les noms ou les photos ont changé
         for (let i = 0; i < newParticipants.length; i++) {
             const newP = newParticipants[i];
             const oldP = this.participants[i];
-            
+
             if (!oldP || newP.name !== oldP.name || newP.faceUrl !== oldP.faceUrl) {
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -326,41 +419,16 @@ export class ParticipantManager {
     }
 
     showGameActiveMessage() {
-        // Créer ou mettre à jour le message informatif
-        let messageEl = document.getElementById('game-active-message');
-        if (!messageEl && this.setupFormElement) {
-            messageEl = document.createElement('div');
-            messageEl.id = 'game-active-message';
-            messageEl.className = 'game-active-message';
-            const contentEl = this.setupFormElement.querySelector('.offcanvas-content');
-            const listEl = this.setupFormElement.querySelector('#participants-list');
-            if (contentEl && listEl) {
-                contentEl.insertBefore(messageEl, listEl);
-            }
-        }
-        
-        if (messageEl) {
-            messageEl.innerHTML = `
-                <div class="message-content">
-                    <span class="message-icon">🎮</span>
-                    <span>Partie en cours - Vous pouvez modifier les participants en temps réel</span>
-                </div>
-            `;
-            messageEl.style.display = 'block';
-        }
+        document.getElementById('game-active-message').hidden = false;
+    }
+
+    hideGameActiveMessage() {
+        document.getElementById('game-active-message').hidden = true;
     }
 
     // --------- Export / import (fichier JSON) ---------
     exportParticipants() {
-        const list = document.getElementById('participants-list');
-        const rows = Array.from(list.getElementsByClassName('participant-row'));
-        const participants = rows.map((row, idx) => {
-            const name = (row.querySelector('input[type="text"]')?.value || '').trim() || `Participant ${idx + 1}`;
-            // getAttribute évite de récupérer l'URL de la page quand la vignette est vide
-            const faceUrl = row.querySelector('img.face-thumb')?.getAttribute('src') || null;
-            const display = !!row.querySelector('input[type="checkbox"]')?.checked;
-            return { name, faceUrl, display };
-        });
+        const participants = this.#readRows();
 
         const data = {
             app: 'DailySCRUMPicker',
@@ -394,11 +462,10 @@ export class ParticipantManager {
             return;
         }
 
-        const list = document.getElementById('participants-list');
-        list.innerHTML = '';
+        this.hideToast();
+        this.listElement.replaceChildren();
         participants.forEach((p) => this.addParticipantRow(p.name, p.faceUrl, p.display));
-        this.savePreferences();
-        this.updateParticipantsInGame();
+        this.scheduleUpdate();
     }
 
     #parseImportedParticipants(data) {
@@ -430,25 +497,12 @@ export class ParticipantManager {
     }
 
     // --------- Préférences (localStorage + fallback cookies noms) ---------
-    savePreferences(participantsOpt) {
-        const list = document.getElementById('participants-list');
-        const rows = Array.from(list.getElementsByClassName('participant-row'));
-        const rowsToSave = participantsOpt ? null : rows;
-
-        const buildFromDom = rowsToSave?.map((row, idx) => {
-            const nameInput = row.querySelector('input[type="text"]');
-            const displayInput = row.querySelector('input[type="checkbox"]');
-            const thumb = row.querySelector('img.face-thumb');
-            const name = (nameInput?.value || '').trim() || `Participant ${idx + 1}`;
-            const display = !!(displayInput?.checked);
-            const faceUrl = thumb?.src || null;
-            return { name, faceUrl, display };
-        }) || participantsOpt?.map(p => ({ name: p.name, faceUrl: p.faceUrl, display: p.display })) || [];
-
+    savePreferences() {
+        const participants = this.#readRows();
         try {
-            localStorage.setItem(this.storageKey, JSON.stringify(buildFromDom));
+            localStorage.setItem(this.storageKey, JSON.stringify(participants));
         } catch (_) {
-            const names = buildFromDom.map((p, idx) => p.name || `Participant ${idx + 1}`);
+            const names = participants.map(p => p.name);
             const value = encodeURIComponent(JSON.stringify(names));
             this.#setCookie(this.cookieKey, value, 30);
         }
@@ -462,10 +516,9 @@ export class ParticipantManager {
         } catch (_) {}
 
         if (Array.isArray(loaded) && loaded.length > 0) {
-            const list = document.getElementById('participants-list');
-            list.innerHTML = '';
-            loaded.forEach((p) => this.addParticipantRow(p.name, p.faceUrl, p.display !== false));
-            
+            this.listElement.replaceChildren();
+            loaded.forEach((p) => this.addParticipantRow(p.name, this.#cleanFaceUrl(p.faceUrl), p.display !== false));
+
             // Afficher automatiquement les participants actifs au chargement
             setTimeout(() => {
                 this.updateParticipantsInGame();
@@ -479,10 +532,9 @@ export class ParticipantManager {
         try {
             const names = JSON.parse(decodeURIComponent(rawCookie));
             if (Array.isArray(names) && names.length > 0) {
-                const list = document.getElementById('participants-list');
-                list.innerHTML = '';
+                this.listElement.replaceChildren();
                 names.forEach((name) => this.addParticipantRow(name));
-                
+
                 // Afficher automatiquement les participants au chargement
                 setTimeout(() => {
                     this.updateParticipantsInGame();
@@ -511,12 +563,38 @@ export class ParticipantManager {
         return null;
     }
 
-    #escapeHtml(text) {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+    // D'anciennes versions enregistraient l'URL de la page quand il n'y avait pas de photo
+    #cleanFaceUrl(url) {
+        if (typeof url !== 'string') return null;
+        if (url.startsWith('data:image/')) return url;
+        if (/^https?:\/\//i.test(url) && !/(\.html?|\/)([?#].*)?$/i.test(url)) return url;
+        return null;
+    }
+
+    #readRows() {
+        return Array.from(this.listElement.querySelectorAll('.participant-row')).map((row, idx) => this.#readRow(row, idx));
+    }
+
+    #readRow(row, idx) {
+        const name = row.querySelector('.participant-name').value.trim() || `Participant ${idx + 1}`;
+        const faceUrl = row.dataset.faceUrl || null;
+        const display = row.querySelector('.display-input').checked;
+        return { name, faceUrl, display };
+    }
+
+    #icon(path) {
+        const svg = document.createElementNS(SVG_NS, 'svg');
+        svg.setAttribute('width', '18');
+        svg.setAttribute('height', '18');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        const shape = document.createElementNS(SVG_NS, 'path');
+        shape.setAttribute('d', path);
+        svg.appendChild(shape);
+        return svg;
     }
 }
