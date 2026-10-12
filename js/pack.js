@@ -3,6 +3,7 @@
 // en les swipant. L'ordre des cartes = l'ordre de passage.
 
 import { resizeImage } from './image.js';
+import { announcePick, announceRoundReset } from './participants.js';
 
 // Niveaux de rareté, tirés au moment de la génération du paquet
 const RARITIES = [
@@ -304,6 +305,8 @@ export class PackOpeningPicker {
         this.index = 0;
         this.cut = null;
         this.drag = null;
+        // Nouveau paquet = nouveau tour : tout le monde revient dans la liste à passer
+        announceRoundReset();
         this.renderPack();
     }
 
@@ -623,6 +626,7 @@ export class PackOpeningPicker {
     revealTop() {
         const card = this.cards[this.index];
         if (!card) return;
+        announcePick(card.participant.id);
 
         this.counter.textContent = `Carte ${this.index + 1} / ${this.cards.length}`;
         this.root.dataset.glow = card.rarity.shiny ? card.rarity.id : '';

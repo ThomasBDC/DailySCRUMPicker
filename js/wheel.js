@@ -1,3 +1,5 @@
+import { announcePick } from './participants.js';
+
 export class WheelPicker {
     constructor(container) {
         this.container = container;
@@ -261,6 +263,7 @@ export class WheelPicker {
             };
         } else {
             this.selectedParticipant = this.participants[index];
+            announcePick(this.selectedParticipant.id);
         }
 
         this.showWinnerModal(this.selectedParticipant);

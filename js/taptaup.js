@@ -1,5 +1,6 @@
 import { Person } from './Person.js';
 import { COLORS, PERSON_RADIUS, SCENE_SIZE } from './constants.js';
+import { announcePick } from './participants.js';
 
 export class TapTaupePicker {
     constructor(container) {
@@ -331,6 +332,7 @@ export class TapTaupePicker {
         // Choisir un gagnant aléatoire parmi les participants
         this.chosenIdx = Math.floor(Math.random() * this.persons.length);
         this.selectedPerson = this.persons[this.chosenIdx];
+        announcePick(this.participants[this.chosenIdx]?.id);
         
         // S'assurer que le gagnant est visible
         const hole = this.holes[this.chosenIdx % this.holes.length];

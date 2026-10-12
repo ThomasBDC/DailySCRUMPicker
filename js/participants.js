@@ -1,12 +1,24 @@
 import { resizeImage } from './image.js';
 
 export class Participant {
-    constructor(name, faceUrl = null, display = true) {
+    constructor(name, faceUrl = null, display = true, id = null) {
+        this.id = id;
         this.name = name;
         this.faceUrl = faceUrl;
         this.display = display;
         this.mesh = null;
     }
+}
+
+// Les sélecteurs signalent qui vient d'être tiré au sort, et le début d'un nouveau tour
+export function announcePick(participantId) {
+    if (participantId) {
+        window.dispatchEvent(new CustomEvent('participantPicked', { detail: { id: participantId } }));
+    }
+}
+
+export function announceRoundReset() {
+    window.dispatchEvent(new CustomEvent('pickerRoundReset'));
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -27,6 +39,9 @@ export class ParticipantManager {
         this.updateTimeout = null; // Pour éviter les mises à jour trop fréquentes
         this.toastTimeout = null;
         this.toastAction = null;
+        this.nextId = 1;
+        this.passedIds = []; // participants déjà tirés pendant le tour en cours, dans l'ordre
+        this.currentId = null; // dernier participant tiré au sort (celui qui parle)
 
         // S'assurer que le panneau est masqué au démarrage
         if (this.setupFormElement) {
@@ -86,11 +101,20 @@ export class ParticipantManager {
         document.getElementById('start-game').addEventListener('click', () => this.startGame());
         document.getElementById('restart-game').addEventListener('click', () => this.restartGame());
 
+        // Suivi des passages pendant la partie
+        window.addEventListener('participantPicked', (e) => this.markPassed(e.detail.id));
+        window.addEventListener('pickerRoundReset', () => {
+            this.resetRound();
+            this.game?.updateParticipants(this.participants);
+        });
+
         // Délégation d'événements sur la liste
         this.listElement.addEventListener('click', (e) => {
             const row = e.target.closest('.participant-row');
             if (!row) return;
-            if (e.target.closest('.remove-participant')) {
+            if (e.target.closest('.status-chip')) {
+                this.togglePassed(row.dataset.id);
+            } else if (e.target.closest('.remove-participant')) {
                 this.removeParticipantRow(row);
             } else if (e.target.closest('.avatar')) {
                 row.querySelector('.face-input')?.click();
@@ -164,7 +188,7 @@ export class ParticipantManager {
         document.body.style.overflow = 'hidden';
 
         // Afficher un message informatif si le jeu est actif
-        if (this.game && this.game.persons.length > 0) {
+        if (this.isRoundActive() || (this.game && this.game.persons.length > 0)) {
             this.showGameActiveMessage();
         }
     }
@@ -194,10 +218,11 @@ export class ParticipantManager {
         });
     }
 
-    addParticipantRow(name, faceUrl = null, display = true) {
+    addParticipantRow(name, faceUrl = null, display = true, id = null) {
         const row = document.createElement('li');
         row.className = 'participant-row';
         row.classList.toggle('is-absent', !display);
+        row.dataset.id = id || `p${this.nextId++}`;
         row.dataset.faceUrl = faceUrl || '';
 
         const avatar = document.createElement('button');
@@ -220,6 +245,11 @@ export class ParticipantManager {
         nameInput.value = name || `Participant ${this.listElement.children.length + 1}`;
         nameInput.setAttribute('aria-label', 'Nom du participant');
 
+        const status = document.createElement('button');
+        status.type = 'button';
+        status.className = 'status-chip';
+        status.hidden = true;
+
         const toggle = document.createElement('label');
         toggle.className = 'switch';
         toggle.title = 'Présent / absent';
@@ -239,9 +269,10 @@ export class ParticipantManager {
         remove.setAttribute('aria-label', 'Supprimer');
         remove.appendChild(this.#icon('M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6'));
 
-        row.append(avatar, fileInput, nameInput, toggle, remove);
+        row.append(avatar, fileInput, nameInput, status, toggle, remove);
         this.listElement.appendChild(row);
         this.updateAvatar(row);
+        this.updateStatus(row);
         return row;
     }
 
@@ -274,7 +305,7 @@ export class ParticipantManager {
         this.scheduleUpdate();
 
         this.showToast(`${data.name} supprimé`, () => {
-            const restored = this.addParticipantRow(data.name, data.faceUrl, data.display);
+            const restored = this.addParticipantRow(data.name, data.faceUrl, data.display, data.id);
             if (nextRow?.parentElement === this.listElement) {
                 this.listElement.insertBefore(restored, nextRow);
             }
@@ -290,6 +321,65 @@ export class ParticipantManager {
         this.scheduleUpdate();
     }
 
+    // --------- Suivi des passages ---------
+    isRoundActive() {
+        return this.passedIds.length > 0;
+    }
+
+    markPassed(id) {
+        this.passedIds = this.passedIds.filter(passedId => passedId !== id);
+        this.passedIds.push(id);
+        this.currentId = id;
+        // Le sélecteur a déjà retiré la personne tirée : pas besoin de lui renvoyer la liste
+        this.participants = this.#activeParticipants();
+        this.refreshSummary();
+        if (this.isConfigPanelOpen()) this.showGameActiveMessage();
+    }
+
+    // Correction manuelle : marquer quelqu'un comme passé (ou le remettre dans le tirage)
+    togglePassed(id) {
+        if (this.passedIds.includes(id)) {
+            this.passedIds = this.passedIds.filter(passedId => passedId !== id);
+            if (this.currentId === id) this.currentId = null;
+        } else {
+            this.passedIds.push(id);
+        }
+        this.refreshSummary();
+        this.updateParticipantsInGame();
+    }
+
+    // Nouveau tour : tout le monde est de nouveau à passer
+    resetRound() {
+        this.passedIds = [];
+        this.currentId = null;
+        this.participants = this.#activeParticipants();
+        this.refreshSummary();
+    }
+
+    updateStatus(row) {
+        const chip = row.querySelector('.status-chip');
+        const present = row.querySelector('.display-input').checked;
+        const rank = this.passedIds.indexOf(row.dataset.id) + 1;
+        const isCurrent = rank > 0 && row.dataset.id === this.currentId;
+
+        chip.hidden = !this.isRoundActive() || (!present && rank === 0);
+        chip.classList.toggle('is-passed', rank > 0 && !isCurrent);
+        chip.classList.toggle('is-current', isCurrent);
+        row.classList.toggle('is-passed', rank > 0 && !isCurrent);
+        row.classList.toggle('is-current', isCurrent);
+
+        if (isCurrent) {
+            chip.textContent = 'En cours';
+            chip.title = `Passe en ${this.#ordinal(rank)} — cliquer pour le remettre dans le tirage`;
+        } else if (rank > 0) {
+            chip.textContent = `✓ ${this.#ordinal(rank)}`;
+            chip.title = `Passé en ${this.#ordinal(rank)} — cliquer pour le remettre dans le tirage`;
+        } else {
+            chip.textContent = 'À passer';
+            chip.title = 'Cliquer pour le marquer comme déjà passé';
+        }
+    }
+
     // Sauvegarde puis applique la liste au jeu (regroupe les modifications rapprochées)
     scheduleUpdate() {
         this.savePreferences();
@@ -303,11 +393,18 @@ export class ParticipantManager {
     refreshSummary() {
         const all = this.#readRows();
         const present = all.filter(p => p.display).length;
+        const passed = all.filter(p => this.passedIds.includes(p.id)).length;
+        const remaining = all.filter(p => p.display && !this.passedIds.includes(p.id)).length;
         document.getElementById('participants-count').textContent = String(all.length);
-        document.getElementById('config-count').textContent = String(present);
-        document.getElementById('presence-summary').textContent = all.length
-            ? `${present} présent${present > 1 ? 's' : ''} sur ${all.length}`
-            : '';
+        document.getElementById('config-count').textContent = this.isRoundActive() ? `${passed}/${passed + remaining}` : String(present);
+        let summary = '';
+        if (this.isRoundActive()) {
+            summary = `${passed} passé${passed > 1 ? 's' : ''} · ${remaining} à passer`;
+        } else if (all.length) {
+            summary = `${present} présent${present > 1 ? 's' : ''} sur ${all.length}`;
+        }
+        document.getElementById('presence-summary').textContent = summary;
+        this.listElement.querySelectorAll('.participant-row').forEach(row => this.updateStatus(row));
         document.getElementById('participants-empty').hidden = all.length > 0;
         this.setupFormElement.querySelector('.list-toolbar').hidden = all.length === 0;
     }
@@ -334,7 +431,7 @@ export class ParticipantManager {
                 return;
             }
 
-            this.participants = participants.filter(p => p.display !== false);
+            this.resetRound();
             this.savePreferences();
             this.closeConfigPanel();
 
@@ -358,9 +455,8 @@ export class ParticipantManager {
         if (!this.game) return;
 
         try {
-            // Récupérer les participants actuels du formulaire
-            const participants = await this.getParticipantsFromForm();
-            this.participants = participants.filter(p => p.display !== false);
+            // Tout le monde revient dans le tirage
+            this.resetRound();
 
             // Réinitialiser complètement le jeu
             this.game.resetGame();
@@ -372,7 +468,7 @@ export class ParticipantManager {
     }
 
     getParticipantsFromForm() {
-        return Promise.resolve(this.#readRows().map(p => new Participant(p.name, p.faceUrl, p.display)));
+        return Promise.resolve(this.#readRows().map(p => new Participant(p.name, p.faceUrl, p.display, p.id)));
     }
 
     // Méthode pour mettre à jour les participants en temps réel
@@ -380,8 +476,8 @@ export class ParticipantManager {
         if (!this.game) return;
 
         try {
-            const participants = await this.getParticipantsFromForm();
-            this.participants = participants.filter(p => p.display !== false);
+            // Ceux qui sont déjà passés ne reviennent pas dans le tirage
+            this.participants = this.#activeParticipants();
             this.game.updateParticipants(this.participants);
         } catch (error) {
             console.error('Erreur lors de la mise à jour des participants:', error);
@@ -428,7 +524,7 @@ export class ParticipantManager {
 
     // --------- Export / import (fichier JSON) ---------
     exportParticipants() {
-        const participants = this.#readRows();
+        const participants = this.#readRows().map(({ name, faceUrl, display }) => ({ name, faceUrl, display }));
 
         const data = {
             app: 'DailySCRUMPicker',
@@ -463,6 +559,8 @@ export class ParticipantManager {
         }
 
         this.hideToast();
+        this.passedIds = [];
+        this.currentId = null;
         this.listElement.replaceChildren();
         participants.forEach((p) => this.addParticipantRow(p.name, p.faceUrl, p.display));
         this.scheduleUpdate();
@@ -498,7 +596,7 @@ export class ParticipantManager {
 
     // --------- Préférences (localStorage + fallback cookies noms) ---------
     savePreferences() {
-        const participants = this.#readRows();
+        const participants = this.#readRows().map(({ name, faceUrl, display }) => ({ name, faceUrl, display }));
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(participants));
         } catch (_) {
@@ -576,10 +674,22 @@ export class ParticipantManager {
     }
 
     #readRow(row, idx) {
+        const id = row.dataset.id;
         const name = row.querySelector('.participant-name').value.trim() || `Participant ${idx + 1}`;
         const faceUrl = row.dataset.faceUrl || null;
         const display = row.querySelector('.display-input').checked;
-        return { name, faceUrl, display };
+        return { id, name, faceUrl, display };
+    }
+
+    // Présents et pas encore passés : ceux qui restent à tirer au sort
+    #activeParticipants() {
+        return this.#readRows()
+            .filter(p => p.display && !this.passedIds.includes(p.id))
+            .map(p => new Participant(p.name, p.faceUrl, p.display, p.id));
+    }
+
+    #ordinal(rank) {
+        return rank === 1 ? '1er' : `${rank}e`;
     }
 
     #icon(path) {

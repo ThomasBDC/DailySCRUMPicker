@@ -1,4 +1,4 @@
-import { ParticipantManager } from './participants.js';
+import { ParticipantManager, announcePick } from './participants.js';
 import { PERSON_RADIUS, SCENE_SIZE, COLORS } from './constants.js';
 import { Person } from './Person.js';
 import { Scene } from './scene.js';
@@ -144,6 +144,9 @@ class Game {
         
         this.updatePickerSettings();
 
+        // Changer de sélecteur commence un nouveau tour
+        this.participantManager.resetRound();
+
         // L'étiquette de nom d'un autre sélecteur ne doit pas rester affichée
         if (this.nameEl) {
             this.nameEl.style.display = 'none';
@@ -270,6 +273,7 @@ class Game {
             const color = COLORS[i % COLORS.length];
             const person = new Person(color, participants[i].faceUrl);
             person.group.userData.name = participants[i].name;
+            person.group.userData.participantId = participants[i].id;
             this.scene.scene.add(person.group);
             this.persons.push(person);
         }
@@ -335,7 +339,12 @@ class Game {
 
         if (this.currentPicker === 'taptaup') {
             if (this.taptaup) {
+                // Un tirage en cours viserait un personnage recréé : on l'interrompt
+                const drawInProgress = this.taptaup.running || this.taptaup.selectionPhase || this.taptaup.zoomPhase;
                 this.taptaup.setParticipants(participants);
+                if (drawInProgress) {
+                    this.taptaup.reset();
+                }
             }
             return;
         }
@@ -369,8 +378,9 @@ class Game {
         if (this.shouldRecreatePersons(participants)) {
             this.createPersons(participants);
             
-            // Si on a moins de participants qu'avant, réinitialiser le jeu
-            if (participants.length < oldCount) {
+            // Si on a moins de participants qu'avant, ou si un tirage visait un personnage recréé,
+            // réinitialiser le jeu
+            if (participants.length < oldCount || this.running || this.spotlightPhase) {
                 this.resetGame();
             }
         } else {
@@ -472,6 +482,8 @@ class Game {
     startSpotlightPhase() {
         this.chosenIdx = Math.floor(Math.random() * this.persons.length);
         const chosenPerson = this.persons[this.chosenIdx];
+
+        announcePick(chosenPerson.group.userData.participantId);
 
         // Jouer le son du spotlight
         this.audioManager.playSpotlightSound();

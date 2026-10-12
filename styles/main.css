@@ -686,6 +686,50 @@ select {
     outline-offset: 2px;
 }
 
+/* Suivi des passages pendant la partie */
+.status-chip {
+    flex: 0 0 auto;
+    height: 24px;
+    padding: 0 9px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.status-chip:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+}
+
+.status-chip.is-passed {
+    border-color: transparent;
+    background: rgba(52, 211, 153, 0.14);
+    color: var(--success);
+}
+
+.status-chip.is-current {
+    border-color: transparent;
+    background: var(--accent-gradient);
+    color: #fff;
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.participant-row.is-current {
+    border-color: rgba(124, 92, 255, 0.6);
+    background: linear-gradient(90deg, var(--accent-soft), var(--surface-2) 70%);
+}
+
+.participant-row.is-passed .avatar,
+.participant-row.is-passed .participant-name {
+    opacity: 0.55;
+}
+
 .remove-participant:hover {
     background: var(--danger-soft);
     color: var(--danger);
