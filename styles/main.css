@@ -861,9 +861,32 @@ select {
     gap: 2px;
 }
 
+.mode-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .mode-text strong {
     font-size: 14px;
     font-weight: 600;
+}
+
+.mode-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    box-shadow: 0 4px 10px rgba(245, 158, 11, 0.35);
+    line-height: 1;
 }
 
 .mode-text small {
