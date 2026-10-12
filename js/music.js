@@ -111,40 +111,45 @@ export function parseMusicSettings(value) {
 
 const OPENVERSE_API = 'https://api.openverse.org/v1/audio/';
 
-// Catégories proposées dans le panneau. `category` et `length` sont des filtres Openverse.
+// Catégories proposées dans le panneau. `filters` : paramètres de recherche Openverse.
+// Les bruitages viennent de Freesound : la catégorie Openverse « sound_effect » n'est
+// presque jamais renseignée, on filtre donc par source plutôt que par catégorie.
+const MUSIC = { category: 'music' };
+const EFFECT = { source: 'freesound' };
+
 export const LIBRARY_CATEGORIES = [
     {
         group: 'Musiques',
         items: [
-            { id: 'suspense', label: 'Suspense', q: 'suspense', category: 'music' },
-            { id: 'gameshow', label: 'Jeu télé', q: 'game show', category: 'music' },
-            { id: 'epic', label: 'Épique', q: 'epic', category: 'music' },
-            { id: 'electro', label: 'Électro', q: 'electronic', category: 'music' },
-            { id: 'chiptune', label: 'Rétro 8-bit', q: 'chiptune', category: 'music' },
-            { id: 'action', label: 'Action', q: 'action', category: 'music' },
-            { id: 'funk', label: 'Funk', q: 'funk', category: 'music' },
-            { id: 'rock', label: 'Rock', q: 'rock', category: 'music' },
-            { id: 'jazz', label: 'Jazz', q: 'jazz', category: 'music' },
-            { id: 'latin', label: 'Latino', q: 'latin', category: 'music' },
-            { id: 'chill', label: 'Chill', q: 'chill', category: 'music' },
-            { id: 'funny', label: 'Rigolo', q: 'funny', category: 'music' },
-            { id: 'space', label: 'Espace', q: 'space', category: 'music' },
-            { id: 'orchestra', label: 'Orchestral', q: 'orchestra', category: 'music' },
+            { id: 'suspense', label: 'Suspense', q: 'suspense', filters: MUSIC },
+            { id: 'gameshow', label: 'Jeu télé', q: 'game show', filters: MUSIC },
+            { id: 'epic', label: 'Épique', q: 'epic', filters: MUSIC },
+            { id: 'electro', label: 'Électro', q: 'electronic', filters: MUSIC },
+            { id: 'chiptune', label: 'Rétro 8-bit', q: 'chiptune', filters: MUSIC },
+            { id: 'action', label: 'Action', q: 'action', filters: MUSIC },
+            { id: 'funk', label: 'Funk', q: 'funk', filters: MUSIC },
+            { id: 'rock', label: 'Rock', q: 'rock', filters: MUSIC },
+            { id: 'jazz', label: 'Jazz', q: 'jazz', filters: MUSIC },
+            { id: 'latin', label: 'Latino', q: 'latin', filters: MUSIC },
+            { id: 'chill', label: 'Chill', q: 'chill', filters: MUSIC },
+            { id: 'funny', label: 'Rigolo', q: 'funny', filters: MUSIC },
+            { id: 'space', label: 'Espace', q: 'space', filters: MUSIC },
+            { id: 'orchestra', label: 'Orchestral', q: 'orchestra', filters: MUSIC },
         ],
     },
     {
         group: 'Effets courts',
         items: [
-            { id: 'drumroll', label: 'Roulement de tambour', q: 'drum roll', category: 'sound_effect' },
-            { id: 'fanfare', label: 'Fanfare', q: 'fanfare', category: 'sound_effect' },
-            { id: 'jingle', label: 'Jingle', q: 'jingle', category: 'sound_effect' },
-            { id: 'win', label: 'Victoire', q: 'win', category: 'sound_effect' },
-            { id: 'applause', label: 'Applaudissements', q: 'applause', category: 'sound_effect' },
-            { id: 'tada', label: 'Ta-da', q: 'tada', category: 'sound_effect' },
-            { id: 'gong', label: 'Gong', q: 'gong', category: 'sound_effect' },
-            { id: 'ufo', label: 'OVNI / Sci-fi', q: 'ufo', category: 'sound_effect' },
-            { id: 'cartoon', label: 'Cartoon', q: 'cartoon', category: 'sound_effect' },
-            { id: 'whoosh', label: 'Whoosh', q: 'whoosh', category: 'sound_effect' },
+            { id: 'drumroll', label: 'Roulement de tambour', q: 'drum roll', filters: EFFECT },
+            { id: 'fanfare', label: 'Fanfare', q: 'fanfare', filters: EFFECT },
+            { id: 'jingle', label: 'Jingle', q: 'jingle', filters: EFFECT },
+            { id: 'win', label: 'Victoire', q: 'win', filters: EFFECT },
+            { id: 'applause', label: 'Applaudissements', q: 'applause', filters: EFFECT },
+            { id: 'tada', label: 'Ta-da', q: 'tada', filters: EFFECT },
+            { id: 'gong', label: 'Gong', q: 'gong', filters: EFFECT },
+            { id: 'ufo', label: 'OVNI / Sci-fi', q: 'ufo', filters: EFFECT },
+            { id: 'cartoon', label: 'Cartoon', q: 'cartoon', filters: EFFECT },
+            { id: 'whoosh', label: 'Whoosh', q: 'whoosh', filters: EFFECT },
         ],
     },
 ];
@@ -173,10 +178,20 @@ function toTrack(result) {
 
 const searchCache = new Map();
 
-// Renvoie { tracks, hasMore }. commercial : seulement les licences qui autorisent un usage commercial.
-export async function searchLibrary({ q, category = null, page = 1, commercial = true }) {
+// Renvoie { tracks, hasMore, filters }. commercial : seulement les licences qui autorisent
+// un usage commercial. Si les filtres de la catégorie ne donnent rien en première page,
+// la recherche est relancée sans eux ; `filters` indique ceux finalement utilisés.
+export async function searchLibrary({ q, filters = {}, page = 1, commercial = true }) {
+    const result = await fetchLibrary({ q, filters, page, commercial });
+    if (result.tracks.length === 0 && page === 1 && Object.keys(filters).length > 0) {
+        return fetchLibrary({ q, filters: {}, page, commercial });
+    }
+    return result;
+}
+
+async function fetchLibrary({ q, filters, page, commercial }) {
     const params = new URLSearchParams({ q, page: String(page), page_size: '20' });
-    if (category) params.set('category', category);
+    Object.entries(filters).forEach(([key, value]) => params.set(key, value));
     if (commercial) params.set('license_type', 'commercial');
     const url = `${OPENVERSE_API}?${params}`;
     if (searchCache.has(url)) return searchCache.get(url);
@@ -194,6 +209,7 @@ export async function searchLibrary({ q, category = null, page = 1, commercial =
     const result = {
         tracks: (body.results || []).filter(r => httpUrl(r.url)).map(toTrack),
         hasMore: page < (body.page_count || 0),
+        filters,
     };
     searchCache.set(url, result);
     return result;

@@ -98,7 +98,7 @@ export class MusicPanel {
         document.getElementById('music-search').addEventListener('submit', (e) => {
             e.preventDefault();
             const q = searchInput.value.trim();
-            if (q) this.showView({ kind: 'search', q, category: null });
+            if (q) this.showView({ kind: 'search', q, filters: {} });
         });
 
         this.commercialInput.addEventListener('change', () => {
@@ -160,7 +160,7 @@ export class MusicPanel {
                 el('span', { class: 'music-chip-label', text: group }),
                 el('div', { class: 'music-chips' }, items.map(item => chip(
                     item.label,
-                    { kind: 'search', q: item.q, category: item.category, chip: item.id },
+                    { kind: 'search', q: item.q, filters: item.filters, chip: item.id },
                     item.id,
                 ))),
             ]));
@@ -168,7 +168,8 @@ export class MusicPanel {
     }
 
     showView(view) {
-        this.view = view;
+        // `filters` reste celui de la catégorie ; `activeFilters` peut être levé faute de résultat
+        this.view = { ...view, activeFilters: view.filters };
         const active = view.kind === 'search' ? view.chip : view.kind;
         this.root.querySelectorAll('.music-chip').forEach((chip) => {
             chip.classList.toggle('active', chip.dataset.chip === active);
@@ -192,13 +193,15 @@ export class MusicPanel {
         if (page === 1) this.resultsEl.replaceChildren();
 
         try {
-            const { tracks, hasMore } = await searchLibrary({
+            const { tracks, hasMore, filters } = await searchLibrary({
                 q: view.q,
-                category: view.category,
+                filters: view.activeFilters,
                 page,
                 commercial: this.commercialInput.checked,
             });
             if (token !== this.searchToken) return;
+            // Les pages suivantes gardent les filtres retenus (ils ont pu être levés faute de résultat)
+            view.activeFilters = filters;
             const known = new Set(this.results.map(t => t.id));
             this.results = this.results.concat(tracks.filter(t => !known.has(t.id)));
             this.renderResults();
