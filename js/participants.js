@@ -106,6 +106,17 @@ export class ParticipantManager {
             }
         });
 
+        // Export / import de la configuration des participants
+        document.getElementById('export-participants').addEventListener('click', () => this.exportParticipants());
+        const importInput = document.getElementById('import-participants-input');
+        document.getElementById('import-participants').addEventListener('click', () => importInput.click());
+        importInput.addEventListener('change', (e) => {
+            const file = e.target.files?.[0];
+            if (file) this.importParticipants(file);
+            // Réinitialiser pour pouvoir réimporter le même fichier
+            e.target.value = '';
+        });
+
         // Fermer avec la touche Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isConfigPanelOpen()) {
@@ -337,6 +348,85 @@ export class ParticipantManager {
             `;
             messageEl.style.display = 'block';
         }
+    }
+
+    // --------- Export / import (fichier JSON) ---------
+    exportParticipants() {
+        const list = document.getElementById('participants-list');
+        const rows = Array.from(list.getElementsByClassName('participant-row'));
+        const participants = rows.map((row, idx) => {
+            const name = (row.querySelector('input[type="text"]')?.value || '').trim() || `Participant ${idx + 1}`;
+            // getAttribute évite de récupérer l'URL de la page quand la vignette est vide
+            const faceUrl = row.querySelector('img.face-thumb')?.getAttribute('src') || null;
+            const display = !!row.querySelector('input[type="checkbox"]')?.checked;
+            return { name, faceUrl, display };
+        });
+
+        const data = {
+            app: 'DailySCRUMPicker',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            participants
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `participants-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    async importParticipants(file) {
+        let participants;
+        try {
+            participants = this.#parseImportedParticipants(JSON.parse(await file.text()));
+        } catch (error) {
+            console.error('Erreur lors de l\'import des participants:', error);
+            alert('Fichier invalide : impossible d\'importer la configuration des participants.');
+            return;
+        }
+
+        if (!confirm(`Importer ${participants.length} participant(s) ? La liste actuelle sera remplacée.`)) {
+            return;
+        }
+
+        const list = document.getElementById('participants-list');
+        list.innerHTML = '';
+        participants.forEach((p) => this.addParticipantRow(p.name, p.faceUrl, p.display));
+        this.savePreferences();
+        this.updateParticipantsInGame();
+    }
+
+    #parseImportedParticipants(data) {
+        // Accepte le format exporté ({ participants: [...] }) ou un tableau brut
+        const items = Array.isArray(data) ? data : data?.participants;
+        if (!Array.isArray(items)) {
+            throw new Error('Aucune liste de participants trouvée');
+        }
+
+        const participants = items
+            .map((item, idx) => {
+                // Un simple nom est aussi accepté
+                if (typeof item === 'string') item = { name: item };
+                if (!item || typeof item !== 'object') return null;
+                const name = typeof item.name === 'string' && item.name.trim()
+                    ? item.name.trim()
+                    : `Participant ${idx + 1}`;
+                const faceUrl = typeof item.faceUrl === 'string' && /^(data:image\/|https?:\/\/)/i.test(item.faceUrl)
+                    ? item.faceUrl
+                    : null;
+                return { name, faceUrl, display: item.display !== false };
+            })
+            .filter(Boolean);
+
+        if (participants.length === 0) {
+            throw new Error('La liste de participants est vide');
+        }
+        return participants;
     }
 
     // --------- Préférences (localStorage + fallback cookies noms) ---------
