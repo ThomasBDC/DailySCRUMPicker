@@ -4,6 +4,7 @@ import { Person } from './Person.js';
 import { Scene } from './scene.js';
 import { WheelPicker } from './wheel.js';
 import { TapTaupePicker } from './taptaup.js';
+import { PackOpeningPicker } from './pack.js';
 import { AudioManager } from './audio.js';
 
 class Game {
@@ -20,6 +21,7 @@ class Game {
         this.scene = null;
         this.wheel = null;
         this.taptaup = null;
+        this.pack = null;
         this.persons = [];
         this.running = false;
         this.spotlightPhase = false;
@@ -62,6 +64,7 @@ class Game {
         if (pickerSelect) {
             pickerSelect.value = this.currentPicker;
         }
+        this.updatePickerSettings();
         
         // Initialiser l'affichage correct au démarrage
         if (this.currentPicker === 'wheel') {
@@ -83,6 +86,11 @@ class Game {
             }
             if (this.wheel) {
                 this.wheel.canvas.style.display = 'none';
+            }
+        } else if (this.currentPicker === 'pack') {
+            this.pack = new PackOpeningPicker(document.body);
+            if (this.scene) {
+                this.scene.renderer.domElement.style.display = 'none';
             }
         } else if (this.currentPicker === '3d') {
             if (!this.scene) {
@@ -106,6 +114,8 @@ class Game {
                 this.wheel.setParticipants(event.detail);
             } else if (this.currentPicker === 'taptaup' && this.taptaup) {
                 this.taptaup.setParticipants(event.detail);
+            } else if (this.currentPicker === 'pack' && this.pack) {
+                this.pack.setParticipants(event.detail);
             }
         });
         
@@ -130,8 +140,34 @@ class Game {
             console.warn('Erreur lors de la sauvegarde du type de picker:', error);
         }
         
+        this.updatePickerSettings();
+
+        // L'étiquette de nom d'un autre sélecteur ne doit pas rester affichée
+        if (this.nameEl) {
+            this.nameEl.style.display = 'none';
+        }
+
         // Cacher/montrer les éléments appropriés
-        if (type === 'wheel') {
+        if (this.pack && type !== 'pack') {
+            this.pack.hide();
+        }
+        if (type === 'pack') {
+            if (this.scene) {
+                this.scene.renderer.domElement.style.display = 'none';
+            }
+            if (this.wheel) {
+                this.wheel.canvas.style.display = 'none';
+            }
+            if (this.taptaup) {
+                this.taptaup.renderer.domElement.style.display = 'none';
+            }
+            if (!this.pack) {
+                this.pack = new PackOpeningPicker(document.body);
+            } else {
+                this.pack.show();
+            }
+            this.pack.setParticipants(this.participantManager.participants);
+        } else if (type === 'wheel') {
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
             }
@@ -180,6 +216,14 @@ class Game {
         }
     }
 
+    // Affiche les réglages propres au sélecteur courant dans le panneau de configuration
+    updatePickerSettings() {
+        const packSettings = document.getElementById('pack-settings');
+        if (packSettings) {
+            packSettings.hidden = this.currentPicker !== 'pack';
+        }
+    }
+
     createPersons(participants) {
         if (this.currentPicker === 'wheel') {
             if (!this.wheel) {
@@ -195,6 +239,15 @@ class Game {
                 this.taptaup.renderer.domElement.addEventListener('click', () => this.handleClick());
             }
             this.taptaup.setParticipants(participants);
+            return;
+        }
+
+        if (this.currentPicker === 'pack') {
+            if (!this.pack) {
+                this.pack = new PackOpeningPicker(document.body);
+            }
+            this.pack.setParticipants(participants);
+            this.pack.reset();
             return;
         }
 
@@ -235,6 +288,10 @@ class Game {
         } else if (this.currentPicker === 'taptaup') {
             if (this.taptaup) {
                 this.taptaup.reset();
+            }
+        } else if (this.currentPicker === 'pack') {
+            if (this.pack) {
+                this.pack.reset();
             }
         } else {
             // Mode 3D
@@ -277,6 +334,13 @@ class Game {
         if (this.currentPicker === 'taptaup') {
             if (this.taptaup) {
                 this.taptaup.setParticipants(participants);
+            }
+            return;
+        }
+
+        if (this.currentPicker === 'pack') {
+            if (this.pack) {
+                this.pack.setParticipants(participants);
             }
             return;
         }
