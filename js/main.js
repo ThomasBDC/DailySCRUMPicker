@@ -139,6 +139,11 @@ class Game {
             console.warn('Erreur lors de la sauvegarde du type de picker:', error);
         }
         
+        // L'étiquette de nom d'un autre sélecteur ne doit pas rester affichée
+        if (this.nameEl) {
+            this.nameEl.style.display = 'none';
+        }
+
         // Cacher/montrer les éléments appropriés
         if (this.pack && type !== 'pack') {
             this.pack.hide();
