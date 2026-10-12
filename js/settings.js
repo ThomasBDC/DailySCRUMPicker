@@ -9,6 +9,7 @@ import { UNSPLASH_KEY_STORAGE, parseUnsplashKey } from './unsplash.js';
 import { MUSIC_STORAGE_KEY, parseMusicSettings } from './music.js';
 import { exportSounds, parseSounds, replaceSounds } from './soundStore.js';
 import { PACK_SOUND_KEY } from './packSounds.js';
+import { cleanAttacks } from './participants.js';
 
 export const PICKER_TYPES = ['3d', 'wheel', 'taptaup', 'pack'];
 
@@ -145,7 +146,9 @@ function parseParticipants(items) {
                 ? item.name.trim()
                 : `Participant ${idx + 1}`;
             const faceUrl = isImageUrl(item.faceUrl) ? item.faceUrl : null;
-            return { name, faceUrl, display: item.display !== false };
+            // Attaques de la carte du pack opening (absentes des fichiers plus anciens)
+            const attacks = cleanAttacks(item.attacks);
+            return { name, faceUrl, display: item.display !== false, ...(attacks && { attacks }) };
         })
         .filter(Boolean);
 

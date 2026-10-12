@@ -8,6 +8,7 @@ import { PackOpeningPicker } from './pack.js';
 import { AudioManager } from './audio.js';
 import { MusicPanel } from './musicPanel.js';
 import { setupSettingsTransfer, PICKER_TYPES } from './settings.js';
+import { CardsModal } from './cardsModal.js';
 
 class Game {
     constructor() {
@@ -39,6 +40,9 @@ class Game {
         
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
+
+        // Modale de configuration des cartes du pack opening
+        this.cardsModal = new CardsModal(this.participantManager);
 
         // Onglet Musiques du panneau de configuration
         this.musicPanel = new MusicPanel(this.audioManager);

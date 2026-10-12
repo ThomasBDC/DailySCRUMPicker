@@ -110,3 +110,138 @@
         opacity: 0;
     }
 }
+
+/* Modale « Cartes des participants » (pack opening) */
+.cards-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(92%, 560px);
+    max-height: 88vh;
+    margin: 6vh auto 0;
+    padding: 20px 20px 16px;
+    text-align: left;
+}
+
+.cards-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cards-modal-content h2 {
+    color: var(--text);
+    font-size: 18px;
+    text-transform: none;
+    letter-spacing: -0.01em;
+}
+
+.cards-config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    margin: 0;
+    padding: 0 4px 0 0;
+    overflow-y: auto;
+    list-style: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-3) transparent;
+}
+
+.card-config {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+}
+
+.card-config-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.card-config-avatar {
+    width: 32px;
+    height: 32px;
+    overflow: hidden;
+    font-size: 12px;
+    cursor: default;
+}
+
+.card-config-avatar::after {
+    display: none;
+}
+
+.card-config-avatar:hover {
+    transform: none;
+}
+
+.card-config-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-config-tag {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.card-config.is-absent .card-config-avatar,
+.card-config.is-absent .card-config-name {
+    opacity: 0.5;
+}
+
+.card-config-reroll {
+    font-size: 18px;
+}
+
+.attack-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.attack-list:empty {
+    display: none;
+}
+
+.attack-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.attack-row .text-field {
+    height: 38px;
+    font-size: 14px;
+}
+
+.attack-fallback {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.attack-add {
+    align-self: flex-start;
+}
+
+.cards-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+}

@@ -1,13 +1,34 @@
 import { resizeImage } from './image.js';
 
 export class Participant {
-    constructor(name, faceUrl = null, display = true, id = null) {
+    constructor(name, faceUrl = null, display = true, id = null, attacks = undefined) {
         this.id = id;
         this.name = name;
         this.faceUrl = faceUrl;
         this.display = display;
+        // Attaques de sa carte (pack opening) : undefined tant qu'elles n'ont pas été configurées
+        this.attacks = attacks;
         this.mesh = null;
     }
+}
+
+export const MAX_ATTACKS = 8;
+export const ATTACK_MAX_LENGTH = 30;
+
+// Liste d'attaques valide (noms non vides, sans doublon), ou undefined si ce n'est pas une liste
+export function cleanAttacks(value) {
+    if (!Array.isArray(value)) return undefined;
+    const seen = new Set();
+    return value
+        .filter(name => typeof name === 'string')
+        .map(name => name.trim().slice(0, ATTACK_MAX_LENGTH))
+        .filter(name => {
+            const key = name.toLowerCase();
+            if (!name || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .slice(0, MAX_ATTACKS);
 }
 
 // Les sélecteurs signalent qui vient d'être tiré au sort, et le début d'un nouveau tour
@@ -207,12 +228,13 @@ export class ParticipantManager {
         });
     }
 
-    addParticipantRow(name, faceUrl = null, display = true, id = null) {
+    addParticipantRow(name, faceUrl = null, display = true, id = null, attacks = undefined) {
         const row = document.createElement('li');
         row.className = 'participant-row';
         row.classList.toggle('is-absent', !display);
         row.dataset.id = id || `p${this.nextId++}`;
         row.dataset.faceUrl = faceUrl || '';
+        if (attacks) row.dataset.attacks = JSON.stringify(attacks);
 
         const avatar = document.createElement('button');
         avatar.type = 'button';
@@ -294,7 +316,7 @@ export class ParticipantManager {
         this.scheduleUpdate();
 
         this.showToast(`${data.name} supprimé`, () => {
-            const restored = this.addParticipantRow(data.name, data.faceUrl, data.display, data.id);
+            const restored = this.addParticipantRow(data.name, data.faceUrl, data.display, data.id, data.attacks);
             if (nextRow?.parentElement === this.listElement) {
                 this.listElement.insertBefore(restored, nextRow);
             }
@@ -307,6 +329,23 @@ export class ParticipantManager {
             row.querySelector('.display-input').checked = present;
             row.classList.toggle('is-absent', !present);
         });
+        this.scheduleUpdate();
+    }
+
+    // --------- Cartes du pack opening ---------
+
+    // Tous les participants (présents ou non), avec leurs attaques
+    getCardSettings() {
+        return Array.from(this.listElement.querySelectorAll('.participant-row')).map((row, idx) => ({
+            ...this.#readRow(row, idx),
+            avatar: row.querySelector('.avatar')
+        }));
+    }
+
+    setAttacks(id, attacks) {
+        const row = this.listElement.querySelector(`.participant-row[data-id="${CSS.escape(id)}"]`);
+        if (!row) return;
+        row.dataset.attacks = JSON.stringify(cleanAttacks(attacks) || []);
         this.scheduleUpdate();
     }
 
@@ -457,7 +496,7 @@ export class ParticipantManager {
     }
 
     getParticipantsFromForm() {
-        return Promise.resolve(this.#readRows().map(p => new Participant(p.name, p.faceUrl, p.display, p.id)));
+        return Promise.resolve(this.#readRows().map(p => new Participant(p.name, p.faceUrl, p.display, p.id, p.attacks)));
     }
 
     // Méthode pour mettre à jour les participants en temps réel
@@ -513,7 +552,7 @@ export class ParticipantManager {
 
     // --------- Préférences (localStorage + fallback cookies noms) ---------
     savePreferences() {
-        const participants = this.#readRows().map(({ name, faceUrl, display }) => ({ name, faceUrl, display }));
+        const participants = this.#readRows().map(({ name, faceUrl, display, attacks }) => ({ name, faceUrl, display, attacks }));
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(participants));
         } catch (_) {
@@ -532,7 +571,7 @@ export class ParticipantManager {
 
         if (Array.isArray(loaded) && loaded.length > 0) {
             this.listElement.replaceChildren();
-            loaded.forEach((p) => this.addParticipantRow(p.name, this.#cleanFaceUrl(p.faceUrl), p.display !== false));
+            loaded.forEach((p) => this.addParticipantRow(p.name, this.#cleanFaceUrl(p.faceUrl), p.display !== false, null, cleanAttacks(p.attacks)));
 
             // Afficher automatiquement les participants actifs au chargement
             setTimeout(() => {
@@ -595,14 +634,18 @@ export class ParticipantManager {
         const name = row.querySelector('.participant-name').value.trim() || `Participant ${idx + 1}`;
         const faceUrl = row.dataset.faceUrl || null;
         const display = row.querySelector('.display-input').checked;
-        return { id, name, faceUrl, display };
+        let attacks;
+        try {
+            attacks = row.dataset.attacks ? cleanAttacks(JSON.parse(row.dataset.attacks)) : undefined;
+        } catch (_) {}
+        return { id, name, faceUrl, display, attacks };
     }
 
     // Présents et pas encore passés : ceux qui restent à tirer au sort
     #activeParticipants() {
         return this.#readRows()
             .filter(p => p.display && !this.passedIds.includes(p.id))
-            .map(p => new Participant(p.name, p.faceUrl, p.display, p.id));
+            .map(p => new Participant(p.name, p.faceUrl, p.display, p.id, p.attacks));
     }
 
     #ordinal(rank) {
