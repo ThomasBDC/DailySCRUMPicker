@@ -1,0 +1,1227 @@
+/* ===== Sélecteur "Pack opening" ===== */
+
+.pack-picker {
+    --card-w: min(300px, 70vw, 44vh);
+    --ray-rgb: 255, 255, 255;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2vh;
+    overflow: hidden;
+    background:
+        radial-gradient(1.5px 1.5px at 12% 22%, rgba(255, 255, 255, .7), transparent),
+        radial-gradient(1.5px 1.5px at 78% 14%, rgba(255, 255, 255, .6), transparent),
+        radial-gradient(2px 2px at 64% 72%, rgba(255, 255, 255, .5), transparent),
+        radial-gradient(1.5px 1.5px at 30% 84%, rgba(255, 255, 255, .5), transparent),
+        radial-gradient(2px 2px at 88% 58%, rgba(255, 255, 255, .4), transparent),
+        radial-gradient(1.5px 1.5px at 6% 64%, rgba(255, 255, 255, .5), transparent),
+        radial-gradient(ellipse at 50% 40%, #3d2c7a 0%, #1b1440 55%, #0b0918 100%);
+    color: #fff;
+    font-family: 'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+.pack-picker,
+.pack-picker * {
+    box-sizing: border-box;
+}
+
+/* Rayons lumineux derrière les cartes rares */
+.pack-rays {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 200vmax;
+    height: 200vmax;
+    margin: -100vmax 0 0 -100vmax;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .6s ease;
+    background: repeating-conic-gradient(rgba(var(--ray-rgb), .22) 0deg 5deg, transparent 5deg 15deg);
+    -webkit-mask-image: radial-gradient(circle, #000 0, transparent 35%);
+    mask-image: radial-gradient(circle, #000 0, transparent 35%);
+    animation: packRaysSpin 40s linear infinite;
+}
+
+.pack-picker[data-glow="rare"] { --ray-rgb: 255, 210, 90; }
+.pack-picker[data-glow="ultra"] { --ray-rgb: 200, 150, 255; }
+.pack-picker[data-glow="crown"] { --ray-rgb: 255, 205, 60; }
+.pack-picker[data-glow="rare"] .pack-rays { opacity: .5; }
+.pack-picker[data-glow="ultra"] .pack-rays { opacity: .8; }
+.pack-picker[data-glow="crown"] .pack-rays { opacity: 1; }
+
+.pack-counter,
+.pack-hint {
+    position: relative;
+    min-height: 1.4em;
+    padding: 0 16px;
+    text-align: center;
+    font-size: 15px;
+}
+
+.pack-counter {
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    opacity: .8;
+}
+
+.pack-hint {
+    animation: hintPulse 2s ease-in-out infinite;
+}
+
+.pack-stage {
+    position: relative;
+    width: var(--card-w);
+    height: calc(var(--card-w) * 1.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ---------- Booster ---------- */
+
+.pack-float {
+    position: relative;
+    z-index: 1;
+    perspective: 1000px;
+    animation: packFloat 3.6s ease-in-out infinite;
+}
+
+.pack-float.nudge {
+    animation: packNudge .45s ease;
+}
+
+.pack {
+    --pack-foil: linear-gradient(160deg, #1d6fe0 0%, #6b3fe0 38%, #d8409c 72%, #ff9d3a 100%);
+    position: relative;
+    width: var(--card-w);
+    aspect-ratio: 63 / 100;
+    transform: rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg));
+    transition: transform .2s ease-out;
+    filter: drop-shadow(0 25px 35px rgba(0, 0, 0, .55));
+    cursor: crosshair;
+}
+
+.pack.is-empty {
+    filter: grayscale(.85) drop-shadow(0 25px 35px rgba(0, 0, 0, .55));
+    cursor: default;
+}
+
+.pack-top {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 12%;
+    overflow: hidden;
+    border-radius: 4px 4px 0 0;
+    background: var(--pack-foil);
+    background-size: 100% 833%;
+    background-position: 50% 0;
+    transform-origin: 100% 100%;
+    transition: transform .8s cubic-bezier(.25, .8, .35, 1), opacity .8s ease;
+}
+
+/* Bords sertis du sachet */
+.pack-top::before,
+.pack-body::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .35) 0 2px, rgba(0, 0, 0, .2) 2px 5px);
+}
+
+.pack-top::before {
+    top: 0;
+    height: 40%;
+}
+
+.pack-body {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 12%;
+    bottom: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4%;
+    border-radius: 0 0 6px 6px;
+    background: var(--pack-foil);
+    background-size: 100% 113.6%;
+    background-position: 50% 100%;
+    transition: transform .9s cubic-bezier(.55, 0, .8, .3), opacity .9s ease-in;
+}
+
+.pack-body::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(125deg, rgba(255, 255, 255, .07) 0 10px, transparent 10px 22px);
+}
+
+.pack-body::after {
+    bottom: 0;
+    height: 4%;
+}
+
+.pack-shine {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .5) 48%, transparent 60%);
+    background-size: 260% 100%;
+    mix-blend-mode: overlay;
+    animation: sheen 3.2s ease-in-out infinite;
+}
+
+.pack-emblem {
+    position: relative;
+    width: 46%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: calc(var(--card-w) * .015) solid #fff;
+    background: conic-gradient(#ffe066, #ff7ac6, #8f7bff, #5ee7ff, #8dff8a, #ffe066);
+    box-shadow: 0 0 25px rgba(255, 255, 255, .6), inset 0 0 20px rgba(0, 0, 0, .25);
+    animation: emblemSpin 8s linear infinite;
+}
+
+.pack-emblem span {
+    font-size: calc(var(--card-w) * .2);
+    color: #fff;
+    text-shadow: 0 0 12px rgba(255, 255, 255, .9), 0 3px 0 rgba(60, 20, 110, .6);
+    animation: emblemSpin 8s linear infinite reverse;
+}
+
+.pack-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: .9;
+    font-size: calc(var(--card-w) * .15);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: .04em;
+    background: linear-gradient(180deg, #fffbe0 0%, #ffd23f 55%, #ff8f1f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 3px 0 #3b1670) drop-shadow(0 0 10px rgba(255, 210, 80, .5));
+}
+
+.pack-subtitle {
+    font-size: calc(var(--card-w) * .045);
+    font-weight: 700;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+}
+
+.pack-count {
+    padding: .3em 1em;
+    border-radius: 2em;
+    border: 1px solid rgba(255, 255, 255, .4);
+    background: rgba(0, 0, 0, .35);
+    font-size: calc(var(--card-w) * .05);
+    font-weight: 800;
+}
+
+/* Ligne de découpe */
+.pack-cut {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 12%;
+    height: 0;
+    z-index: 3;
+    pointer-events: none;
+    border-top: 2px dashed rgba(255, 255, 255, .8);
+    transition: opacity .3s;
+}
+
+.pack.is-empty .pack-cut {
+    display: none;
+}
+
+.pack-cut-glow {
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    width: 0;
+    height: 4px;
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: 0 0 6px #fff, 0 0 14px #ffe27a, 0 0 28px #ff8ce6;
+    transition: left .3s ease, width .3s ease;
+}
+
+.pack.cutting .pack-cut-glow {
+    transition: none;
+}
+
+.pack-scissors {
+    position: absolute;
+    left: -1.5em;
+    top: -.75em;
+    font-size: calc(var(--card-w) * .07);
+    line-height: 1;
+}
+
+.pack-hint-finger {
+    position: absolute;
+    top: -9px;
+    left: 4%;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .85);
+    box-shadow: 0 0 12px #fff;
+    animation: fingerSwipe 2.4s ease-in-out infinite;
+}
+
+.pack.cutting .pack-hint-finger,
+.pack.opened .pack-hint-finger {
+    display: none;
+}
+
+.pack-flash {
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    top: 12%;
+    height: 2px;
+    z-index: 4;
+    border-radius: 50%;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pack.opened .pack-top {
+    transform: translate(35%, -160%) rotate(22deg);
+    opacity: 0;
+}
+
+.pack.opened .pack-cut {
+    opacity: 0;
+}
+
+.pack.opened .pack-flash {
+    animation: packFlash .7s ease-out;
+}
+
+.pack.dropping .pack-body {
+    transform: translateY(110vh) rotate(-5deg);
+    opacity: .6;
+}
+
+/* ---------- Pile de cartes ---------- */
+
+.card-stack {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 1400px;
+}
+
+.card-stack.entering {
+    animation: stackEnter .7s cubic-bezier(.2, .9, .3, 1.15) both;
+}
+
+.card-slot {
+    position: absolute;
+    width: var(--card-w);
+    aspect-ratio: 63 / 88;
+    transform: translateY(calc(var(--d, 0) * 14px)) scale(calc(1 - var(--d, 0) * .045));
+    transition: transform .35s cubic-bezier(.2, .9, .3, 1.1);
+}
+
+.card-slot.is-hidden {
+    visibility: hidden;
+}
+
+.card-slot.flying {
+    z-index: 300 !important;
+    pointer-events: none;
+}
+
+.reveal-burst {
+    --burst-rgb: 255, 255, 255;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 4;
+    width: calc(var(--card-w) * 2.2);
+    aspect-ratio: 1;
+    margin-left: calc(var(--card-w) * -1.1);
+    margin-top: calc(var(--card-w) * -1.1);
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(var(--burst-rgb), .9) 0%, rgba(var(--burst-rgb), .35) 30%, transparent 65%);
+    animation: burst .9s ease-out forwards;
+}
+
+.reveal-burst.rarity-rare { --burst-rgb: 255, 210, 90; }
+.reveal-burst.rarity-ultra { --burst-rgb: 200, 150, 255; }
+.reveal-burst.rarity-crown { --burst-rgb: 255, 215, 0; }
+
+.pack-banner {
+    position: absolute;
+    /* À cheval sur le bord bas de la carte, pour ne pas cacher le nom */
+    top: calc(var(--card-w) * 1.5);
+    left: 50%;
+    z-index: 50;
+    padding: .25em .9em;
+    border-radius: 2em;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    font-size: clamp(18px, 3.5vw, 28px);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: .12em;
+    transform: translate(-50%, -50%) scale(.4);
+}
+
+.pack-banner.show {
+    animation: bannerPop 1.8s cubic-bezier(.2, 1.4, .4, 1) forwards;
+}
+
+.pack-banner.rarity-rare {
+    color: #5a3d00;
+    background: linear-gradient(90deg, #ffe58a, #ffc93c, #ffe58a);
+    box-shadow: 0 0 25px rgba(255, 200, 60, .7);
+}
+
+.pack-banner.rarity-ultra {
+    color: #fff;
+    background: linear-gradient(90deg, #ff7ac6, #8f7bff, #5ee7ff, #8dff8a);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, .35);
+    box-shadow: 0 0 30px rgba(190, 140, 255, .8);
+}
+
+.pack-banner.rarity-crown {
+    color: #4a3000;
+    background: linear-gradient(90deg, #b8860b, #ffe27a, #fffbe0, #ffe27a, #b8860b);
+    box-shadow: 0 0 40px rgba(255, 215, 0, .9);
+}
+
+/* ---------- Carte ---------- */
+
+.card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    font-size: calc(var(--card-w) * .045);
+    border-radius: calc(var(--card-w) * .05);
+    touch-action: none;
+    will-change: transform;
+}
+
+.card-slot .card {
+    cursor: grab;
+}
+
+.card.dragging {
+    cursor: grabbing;
+}
+
+.card.nudge {
+    animation: cardNudge .4s ease;
+}
+
+.card-tilt {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    transform: rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg));
+    transition: transform .25s ease-out, box-shadow .4s ease;
+    box-shadow: 0 1.2em 2.5em rgba(0, 0, 0, .5);
+}
+
+.card-frame {
+    position: absolute;
+    inset: 0;
+    padding: .55em;
+    border-radius: inherit;
+    background: var(--frame);
+    background-size: 300% 300%;
+}
+
+/* Styles par rareté */
+.card.rarity-common {
+    --frame: linear-gradient(145deg, #f2f4f7, #b9c2cc);
+    --art-border: #c3cad3;
+    --rarity-color: #6b7280;
+}
+
+.card.rarity-uncommon {
+    --frame: linear-gradient(145deg, #dcecff, #79a3dc);
+    --art-border: #8fb3e3;
+    --rarity-color: #2f5ea8;
+}
+
+.card.rarity-rare {
+    --frame: linear-gradient(145deg, #fff3bf, #e2b13a 40%, #fff6d1 55%, #c8961c);
+    --art-border: #e4b94a;
+    --rarity-color: #b07d00;
+}
+
+.card.rarity-ultra {
+    --frame: linear-gradient(135deg, #ff9a9e, #fecfef, #a1ffce, #89f7fe, #c3a6ff, #ff9a9e);
+    --art-border: #fff;
+    --rarity-color: #d39b00;
+}
+
+.card.rarity-crown {
+    --frame: linear-gradient(135deg, #8a6400, #ffe27a, #fffbe0, #e0a800, #8a6400, #ffe27a);
+    --art-border: #ffe27a;
+    --rarity-color: #ffd700;
+}
+
+.card.rarity-ultra .card-frame,
+.card.rarity-crown .card-frame {
+    animation: frameShift 4s ease-in-out infinite alternate;
+}
+
+.card-face {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: .35em;
+    padding: .45em .55em .4em;
+    border-radius: .45em;
+    color: #1f1d2b;
+    background:
+        radial-gradient(circle at 30% 20%, rgba(255, 255, 255, .55), transparent 60%),
+        linear-gradient(170deg, var(--t1), var(--t2));
+}
+
+.card-face::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .2) 0 .25em, transparent .25em .8em);
+}
+
+.card.rarity-uncommon .card-face::before { opacity: .5; }
+.card.rarity-rare .card-face::before,
+.card.rarity-ultra .card-face::before { opacity: 1; }
+
+.card-face > * {
+    position: relative;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: .35em;
+    min-height: 1.6em;
+}
+
+.card-stage {
+    flex: none;
+    padding: .25em .6em;
+    border-radius: 1em;
+    background: rgba(255, 255, 255, .65);
+    color: #333;
+    font-size: .5em;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.card-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 1.15em;
+    font-weight: 900;
+}
+
+.card-ex {
+    margin-left: .25em;
+    font-style: italic;
+    font-weight: 900;
+    background: linear-gradient(180deg, #fff, #9aa4b5 60%, #e8ecf2);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-stroke: .04em #2b2b3b;
+}
+
+.card-hp {
+    flex: none;
+    color: #c62828;
+    font-size: 1.05em;
+    font-weight: 900;
+}
+
+.card-hp small {
+    margin-right: .15em;
+    font-size: .5em;
+}
+
+.card-type {
+    flex: none;
+    width: 1.5em;
+    height: 1.5em;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-size: .85em;
+    background: radial-gradient(circle at 35% 30%, #fff, var(--t1));
+    box-shadow: 0 .1em .25em rgba(0, 0, 0, .3);
+}
+
+.card-art {
+    flex: 0 0 43%;
+    overflow: hidden;
+    border-radius: .3em;
+    border: .22em solid var(--art-border);
+    background:
+        radial-gradient(circle at 50% 35%, rgba(255, 255, 255, .8), transparent 55%),
+        linear-gradient(135deg, var(--t2), var(--t1));
+    box-shadow: inset 0 0 1em rgba(0, 0, 0, .25), 0 .15em .3em rgba(0, 0, 0, .25);
+}
+
+.card-initials {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: 72%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: .08em solid rgba(255, 255, 255, .9);
+    background: linear-gradient(160deg, var(--t2), rgba(0, 0, 0, .35));
+    color: #fff;
+    font-size: 2.6em;
+    font-weight: 900;
+    text-shadow: 0 .06em .15em rgba(0, 0, 0, .4);
+    box-shadow: 0 .3em .8em rgba(0, 0, 0, .3);
+    transform: translate(-50%, -50%);
+}
+
+.card-art img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity .3s;
+    pointer-events: none;
+}
+
+.card-art img.loaded {
+    opacity: 1;
+}
+
+.card-info {
+    margin-top: -.15em;
+    padding: .25em .4em;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: center;
+    font-size: .48em;
+    font-style: italic;
+    border-radius: .3em;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent);
+}
+
+.card-moves {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .45em;
+    padding-top: .2em;
+}
+
+.move + .move {
+    padding-top: .35em;
+    border-top: 1px solid rgba(0, 0, 0, .15);
+}
+
+.move-head {
+    display: flex;
+    align-items: center;
+    gap: .4em;
+}
+
+.move-cost {
+    flex: none;
+    font-size: .7em;
+    letter-spacing: -.15em;
+}
+
+.move-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: .9em;
+    font-weight: 800;
+}
+
+.move-dmg {
+    flex: none;
+    font-size: 1.05em;
+    font-weight: 900;
+}
+
+.move-text {
+    margin: .15em 0 0;
+    font-size: .62em;
+    line-height: 1.3;
+    opacity: .85;
+}
+
+.card-flavor {
+    margin: auto 0 0;
+    padding: .3em .5em;
+    border-radius: .3em;
+    background: rgba(255, 255, 255, .35);
+    font-size: .55em;
+    font-style: italic;
+    line-height: 1.3;
+    opacity: .9;
+}
+
+.card.rarity-crown .card-flavor {
+    display: none;
+}
+
+.card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5em;
+    padding-top: .3em;
+    border-top: 1px solid rgba(0, 0, 0, .2);
+    font-size: .48em;
+}
+
+.card-weakness {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.card-rarity {
+    flex: none;
+    color: var(--rarity-color);
+    font-size: 1.6em;
+    line-height: 1;
+    letter-spacing: .05em;
+}
+
+.card.rarity-ultra .card-rarity,
+.card.rarity-crown .card-rarity {
+    text-shadow: 0 0 .3em rgba(255, 215, 0, .9);
+}
+
+.card-number {
+    flex: none;
+    font-weight: 700;
+}
+
+/* Couronne : illustration pleine carte */
+.card.rarity-crown .card-face {
+    gap: 0;
+    padding: 0;
+    color: #fff;
+    background: #1b1033;
+}
+
+.card.rarity-crown .card-face::before,
+.card.rarity-crown .card-info {
+    display: none;
+}
+
+.card.rarity-crown .card-face > * {
+    z-index: 1;
+}
+
+.card.rarity-crown .card-art {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    flex: none;
+    border: none;
+    border-radius: inherit;
+    box-shadow: none;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(255, 240, 180, .9), transparent 55%),
+        conic-gradient(from 0deg at 50% 42%, var(--t1), #ffd700, var(--t2), #fff4b0, var(--t1));
+}
+
+.card.rarity-crown .card-initials {
+    top: 44%;
+    height: 46%;
+    font-size: 4em;
+    border-color: #fff4b0;
+    background: linear-gradient(160deg, rgba(255, 220, 120, .35), rgba(120, 70, 0, .6));
+    box-shadow: 0 0 1.5em rgba(255, 215, 0, .8), 0 .3em .8em rgba(0, 0, 0, .4);
+}
+
+.card.rarity-crown .card-header {
+    padding: .55em .65em 1.6em;
+    background: linear-gradient(180deg, rgba(30, 15, 0, .8), transparent);
+}
+
+.card.rarity-crown .card-name,
+.card.rarity-crown .card-hp {
+    text-shadow: 0 .08em .25em rgba(0, 0, 0, .8);
+}
+
+.card.rarity-crown .card-stage {
+    background: linear-gradient(90deg, #ffd700, #fff4b0);
+    color: #5a3d00;
+}
+
+.card.rarity-crown .card-hp {
+    color: #ffe27a;
+}
+
+.card.rarity-crown .card-moves {
+    flex: none;
+    margin-top: auto;
+    padding: 1.8em .65em .3em;
+    background: linear-gradient(0deg, rgba(0, 0, 0, .7) 55%, transparent);
+}
+
+.card.rarity-crown .card-footer {
+    padding: .3em .65em .55em;
+    border-top-color: rgba(255, 255, 255, .2);
+    background: rgba(0, 0, 0, .7);
+}
+
+/* ---------- Effets de brillance ---------- */
+
+/* Pas de z-index ici : les mix-blend-mode doivent se mélanger avec la face de la carte */
+.card-fx {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.card-shine,
+.card-holo,
+.card-glare,
+.card-sparkles {
+    position: absolute;
+    inset: 0;
+}
+
+.card-shine,
+.card-holo {
+    display: none;
+}
+
+/* Reflet qui suit le pointeur (toutes les cartes) */
+.card-glare {
+    background: radial-gradient(circle at var(--mx, 50%) var(--my, 25%), rgba(255, 255, 255, .55), transparent 50%);
+    mix-blend-mode: overlay;
+    opacity: var(--glare-o, .35);
+    transition: opacity .3s;
+}
+
+/* Rare et + : balayage lumineux */
+.card.rarity-rare .card-shine,
+.card.rarity-ultra .card-shine,
+.card.rarity-crown .card-shine {
+    display: block;
+    background: linear-gradient(110deg, transparent 38%, rgba(255, 255, 255, .65) 48%, rgba(255, 250, 220, .2) 52%, transparent 62%);
+    background-size: 280% 100%;
+    mix-blend-mode: screen;
+    animation: sheen 2.6s ease-in-out infinite;
+}
+
+/* Ultra rare et Couronne : holographique arc-en-ciel */
+.card.rarity-ultra .card-holo,
+.card.rarity-crown .card-holo {
+    display: block;
+    background: repeating-linear-gradient(115deg, #ff7773 0%, #ffed5f 5%, #a8ff5f 10%, #83fff7 15%, #7894ff 20%, #d875ff 25%, #ff7773 30%);
+    background-size: 300% 300%;
+    mix-blend-mode: overlay;
+    opacity: .55;
+    filter: saturate(1.3);
+    animation: holoShift 5s linear infinite alternate;
+}
+
+.card.hovering .card-holo {
+    animation: none;
+    background-position: var(--mx) var(--my);
+}
+
+/* Couronne : holo doré */
+.card.rarity-crown .card-holo {
+    background-image: repeating-linear-gradient(115deg, #fff6c4 0%, #ffd700 6%, #ff9f1c 12%, #fff6c4 18%, #ffe27a 24%, #fffbe0 30%);
+    opacity: .35;
+}
+
+/* Paillettes de la Couronne */
+.card.rarity-crown .card-holo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: .4;
+    mix-blend-mode: overlay;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, .9) 0 1px, transparent 1.5px);
+    background-size: 7px 7px;
+    animation: glitter 1.6s steps(4) infinite;
+}
+
+.card-sparkles {
+    filter: drop-shadow(0 0 .2em #fff);
+}
+
+.card-sparkles i {
+    position: absolute;
+    width: var(--s, 1em);
+    height: var(--s, 1em);
+    margin: calc(var(--s, 1em) / -2);
+    opacity: 0;
+    background: #fff;
+    clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+    animation: twinkle 2.4s ease-in-out infinite;
+}
+
+.card.rarity-crown .card-sparkles i {
+    background: #fff6c4;
+}
+
+/* Halo autour des cartes rares */
+.card-slot.is-top .card.rarity-rare .card-tilt,
+.summary-card .card.rarity-rare .card-tilt {
+    box-shadow: 0 1.2em 2.5em rgba(0, 0, 0, .5), 0 0 1.5em .2em rgba(255, 205, 70, .55);
+}
+
+.card-slot.is-top .card.rarity-ultra .card-tilt,
+.summary-card .card.rarity-ultra .card-tilt {
+    animation: ultraGlow 3s linear infinite;
+}
+
+.card-slot.is-top .card.rarity-crown .card-tilt,
+.summary-card .card.rarity-crown .card-tilt {
+    animation: crownGlow 1.8s ease-in-out infinite;
+}
+
+/* Les cartes du dessous sont face cachée */
+.card-slot:not(.is-top) .card-fx {
+    display: none;
+}
+
+.card-back {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .8em;
+    border-radius: inherit;
+    border: .55em solid #e8ecf2;
+    background: radial-gradient(circle at 50% 45%, #5b7cfa 0%, #2a3b9c 45%, #141a4d 100%);
+    transition: opacity .35s ease, transform .35s ease;
+}
+
+.card-back::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .06) 0 .4em, transparent .4em 1.2em);
+}
+
+.card-back-emblem {
+    position: relative;
+    width: 40%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: .15em solid #fff;
+    background: conic-gradient(#ffe066, #ff7ac6, #8f7bff, #5ee7ff, #8dff8a, #ffe066);
+    box-shadow: 0 0 1.2em rgba(255, 255, 255, .5);
+    color: #fff;
+    font-size: 3em;
+}
+
+.card-back-title {
+    position: relative;
+    color: #ffd23f;
+    font-size: 1.2em;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: .1em;
+    text-shadow: 0 .1em 0 #2b1260;
+}
+
+.card-slot.is-top .card-back {
+    opacity: 0;
+    transform: scale(1.05);
+    pointer-events: none;
+}
+
+/* ---------- Récapitulatif ---------- */
+
+.pack-summary {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 70px 16px 40px;
+    overflow-y: auto;
+    touch-action: pan-y;
+    background: rgba(8, 6, 22, .55);
+}
+
+.pack-summary.visible {
+    display: flex;
+}
+
+.pack-summary h2 {
+    margin: 0;
+    font-size: clamp(24px, 4vw, 36px);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: .06em;
+    background: linear-gradient(180deg, #fffbe0, #ffd23f 60%, #ff8f1f);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 3px 0 #3b1670);
+}
+
+.summary-subtitle {
+    margin-top: -10px;
+    font-size: 15px;
+    opacity: .8;
+}
+
+.summary-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 22px 18px;
+    width: min(1000px, 100%);
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 120px;
+    animation: summaryIn .5s cubic-bezier(.2, 1.3, .4, 1) both;
+}
+
+.summary-card {
+    --card-w: 120px;
+    position: relative;
+    width: var(--card-w);
+    aspect-ratio: 63 / 88;
+    margin-bottom: 4px;
+}
+
+.summary-rank {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    z-index: 5;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #fff;
+    color: #2a1a5e;
+    font-size: 15px;
+    font-weight: 900;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .4);
+}
+
+.summary-name {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.summary-rarity {
+    font-size: 11px;
+    opacity: .7;
+}
+
+.pack-button {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    padding: 14px 28px;
+    border-radius: 40px;
+    color: #3b2400;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 800;
+    background: linear-gradient(180deg, #ffe58a, #ffb627);
+    box-shadow: 0 6px 0 #b9741a, 0 10px 25px rgba(0, 0, 0, .4);
+    transition: transform .1s, box-shadow .1s;
+}
+
+.pack-button:active {
+    transform: translateY(3px);
+    box-shadow: 0 3px 0 #b9741a, 0 6px 15px rgba(0, 0, 0, .4);
+}
+
+/* ---------- Animations ---------- */
+
+@keyframes packFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+}
+
+@keyframes packNudge {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px) rotate(-2deg); }
+    40% { transform: translateX(8px) rotate(2deg); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+}
+
+@keyframes cardNudge {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px) rotate(-2deg); }
+    75% { transform: translateX(10px) rotate(2deg); }
+}
+
+@keyframes emblemSpin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes packRaysSpin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes hintPulse {
+    0%, 100% { opacity: .55; }
+    50% { opacity: 1; }
+}
+
+@keyframes fingerSwipe {
+    0% { left: 4%; opacity: 0; }
+    15% { opacity: 1; }
+    70% { left: 90%; opacity: 1; }
+    85%, 100% { left: 92%; opacity: 0; }
+}
+
+@keyframes packFlash {
+    0% { opacity: 1; box-shadow: 0 0 20px 8px #fff, 0 0 60px 30px rgba(255, 230, 150, .8); }
+    100% { opacity: 0; box-shadow: 0 0 80px 60px rgba(255, 230, 150, 0); }
+}
+
+@keyframes stackEnter {
+    from { transform: translateY(30%) scale(.75); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+@keyframes burst {
+    from { transform: scale(.3); opacity: 1; }
+    to { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes bannerPop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+    15% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    25%, 80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, calc(-50% - 30px)) scale(1); }
+}
+
+@keyframes sheen {
+    0% { background-position: 110% 0; }
+    55%, 100% { background-position: -10% 0; }
+}
+
+@keyframes holoShift {
+    from { background-position: 0% 0%; }
+    to { background-position: 100% 100%; }
+}
+
+@keyframes frameShift {
+    from { background-position: 0% 50%; }
+    to { background-position: 100% 50%; }
+}
+
+@keyframes glitter {
+    0% { background-position: 0 0; }
+    25% { background-position: 3px 2px; }
+    50% { background-position: 1px 5px; }
+    75% { background-position: 5px 1px; }
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+    50% { opacity: 1; transform: scale(1) rotate(90deg); }
+}
+
+@keyframes ultraGlow {
+    0%, 100% { box-shadow: 0 1.2em 2.5em rgba(0, 0, 0, .5), 0 0 2em .3em rgba(255, 120, 200, .6); }
+    33% { box-shadow: 0 1.2em 2.5em rgba(0, 0, 0, .5), 0 0 2em .3em rgba(120, 180, 255, .6); }
+    66% { box-shadow: 0 1.2em 2.5em rgba(0, 0, 0, .5), 0 0 2em .3em rgba(140, 255, 170, .6); }
+}
+
+@keyframes crownGlow {
+    0%, 100% { box-shadow: 0 1.2em 2.5em rgba(0, 0, 0, .5), 0 0 2em .4em rgba(255, 215, 0, .6); }
+    50% { box-shadow: 0 1.2em 2.5em rgba(0, 0, 0, .5), 0 0 3.5em 1em rgba(255, 215, 0, .85); }
+}
+
+@keyframes summaryIn {
+    from { opacity: 0; transform: translateY(20px) scale(.8); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pack-picker *,
+    .pack-picker *::before,
+    .pack-picker *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

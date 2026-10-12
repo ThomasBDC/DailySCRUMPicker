@@ -4,6 +4,7 @@ import { Person } from './Person.js';
 import { Scene } from './scene.js';
 import { WheelPicker } from './wheel.js';
 import { TapTaupePicker } from './taptaup.js';
+import { PackOpeningPicker } from './pack.js';
 import { AudioManager } from './audio.js';
 
 class Game {
@@ -20,6 +21,7 @@ class Game {
         this.scene = null;
         this.wheel = null;
         this.taptaup = null;
+        this.pack = null;
         this.persons = [];
         this.running = false;
         this.spotlightPhase = false;
@@ -84,6 +86,11 @@ class Game {
             if (this.wheel) {
                 this.wheel.canvas.style.display = 'none';
             }
+        } else if (this.currentPicker === 'pack') {
+            this.pack = new PackOpeningPicker(document.body);
+            if (this.scene) {
+                this.scene.renderer.domElement.style.display = 'none';
+            }
         } else if (this.currentPicker === '3d') {
             if (!this.scene) {
                 this.scene = new Scene();
@@ -106,6 +113,8 @@ class Game {
                 this.wheel.setParticipants(event.detail);
             } else if (this.currentPicker === 'taptaup' && this.taptaup) {
                 this.taptaup.setParticipants(event.detail);
+            } else if (this.currentPicker === 'pack' && this.pack) {
+                this.pack.setParticipants(event.detail);
             }
         });
         
@@ -131,7 +140,26 @@ class Game {
         }
         
         // Cacher/montrer les éléments appropriés
-        if (type === 'wheel') {
+        if (this.pack && type !== 'pack') {
+            this.pack.hide();
+        }
+        if (type === 'pack') {
+            if (this.scene) {
+                this.scene.renderer.domElement.style.display = 'none';
+            }
+            if (this.wheel) {
+                this.wheel.canvas.style.display = 'none';
+            }
+            if (this.taptaup) {
+                this.taptaup.renderer.domElement.style.display = 'none';
+            }
+            if (!this.pack) {
+                this.pack = new PackOpeningPicker(document.body);
+            } else {
+                this.pack.show();
+            }
+            this.pack.setParticipants(this.participantManager.participants);
+        } else if (type === 'wheel') {
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
             }
@@ -198,6 +226,15 @@ class Game {
             return;
         }
 
+        if (this.currentPicker === 'pack') {
+            if (!this.pack) {
+                this.pack = new PackOpeningPicker(document.body);
+            }
+            this.pack.setParticipants(participants);
+            this.pack.reset();
+            return;
+        }
+
         // Mode 3D
         if (!this.scene) {
             this.scene = new Scene();
@@ -235,6 +272,10 @@ class Game {
         } else if (this.currentPicker === 'taptaup') {
             if (this.taptaup) {
                 this.taptaup.reset();
+            }
+        } else if (this.currentPicker === 'pack') {
+            if (this.pack) {
+                this.pack.reset();
             }
         } else {
             // Mode 3D
@@ -277,6 +318,13 @@ class Game {
         if (this.currentPicker === 'taptaup') {
             if (this.taptaup) {
                 this.taptaup.setParticipants(participants);
+            }
+            return;
+        }
+
+        if (this.currentPicker === 'pack') {
+            if (this.pack) {
+                this.pack.setParticipants(participants);
             }
             return;
         }
