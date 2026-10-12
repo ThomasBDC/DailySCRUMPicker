@@ -294,8 +294,83 @@ export class PackOpeningPicker {
 
     setParticipants(participants) {
         this.participants = participants.filter(p => p.display !== false);
-        // Un paquet déjà ouvert garde ses cartes : la nouvelle liste servira au prochain paquet
-        this.refreshPack();
+        if (this.state === 'empty' || this.state === 'idle') {
+            this.renderPack();
+        } else if (this.cards.length > 0) {
+            this.syncCards();
+        }
+    }
+
+    // Paquet ouvert : les cartes pas encore retournées suivent la liste en direct.
+    // this.participants ne contient que les personnes qui restent à passer.
+    syncCards() {
+        // Cartes déjà vues (la carte du dessus est face visible) : on n'y touche plus
+        const revealedCount = this.state === 'summary' ? this.cards.length
+            : this.state === 'cards' ? this.index + 1
+            : 0;
+        const kept = this.cards.slice(0, revealedCount);
+        const previousUpcoming = this.cards.slice(revealedCount);
+
+        const byId = new Map(this.participants.map(p => [p.id, p]));
+        const upcoming = previousUpcoming
+            .filter(card => byId.has(card.participant.id))
+            .map(card => ({ ...card, participant: byId.get(card.participant.id) }));
+
+        // Les nouveaux venus sont glissés à une place au hasard parmi les cartes restantes
+        const takenIds = new Set([...kept, ...upcoming].map(card => card.participant.id));
+        this.participants
+            .filter(p => !takenIds.has(p.id))
+            .forEach(p => {
+                const card = this.createCardData(p, 0, 0, pickWeighted(RARITIES));
+                upcoming.splice(randomInt(0, upcoming.length), 0, card);
+            });
+
+        const signature = cards => cards
+            .map(card => `${card.participant.id}|${card.participant.name}|${card.participant.faceUrl}`)
+            .join('\n');
+        if (signature(upcoming) === signature(previousUpcoming)) return;
+
+        this.cards = [...kept, ...upcoming];
+        this.cards.forEach((card, i) => {
+            card.order = i + 1;
+            card.total = this.cards.length;
+        });
+
+        if (this.cards.length === 0) {
+            // Plus personne dans un paquet en cours d'ouverture : retour au paquet vide
+            this.clearTimers();
+            this.renderPack();
+            return;
+        }
+
+        if (this.state === 'summary') {
+            // Quelqu'un arrive après la dernière carte : on reprend avec ses cartes
+            this.clearTimers();
+            this.summary.classList.remove('visible');
+            this.summary.replaceChildren();
+            this.clearStage();
+            this.stackEl = el('div', 'card-stack');
+            this.slots = this.cards.map((card, i) => (i < revealedCount ? null : this.buildSlot(card)));
+            this.slots.forEach(slot => slot && this.stackEl.appendChild(slot));
+            this.index = revealedCount;
+            this.state = 'cards';
+            this.layoutStack();
+            this.stage.appendChild(this.stackEl);
+            this.revealTop();
+            return;
+        }
+
+        // Pile pas encore construite (paquet en train de s'ouvrir) : elle utilisera this.cards
+        if (!this.stackEl) return;
+
+        const peeking = this.slots[revealedCount]?.classList.contains('is-peek');
+        this.slots.slice(revealedCount).forEach(slot => slot?.remove());
+        const newSlots = upcoming.map(card => this.buildSlot(card));
+        newSlots.forEach(slot => this.stackEl.appendChild(slot));
+        if (peeking && newSlots[0]) newSlots[0].classList.add('is-peek');
+        this.slots = [...this.slots.slice(0, revealedCount), ...newSlots];
+        this.layoutStack();
+        if (this.state === 'cards') this.updateProgress();
     }
 
     reset() {
@@ -518,8 +593,7 @@ export class PackOpeningPicker {
     buildStack() {
         this.stackEl = el('div', 'card-stack entering');
         this.slots = this.cards.map(card => {
-            const slot = el('div', 'card-slot');
-            slot.appendChild(this.buildCard(card, true));
+            const slot = this.buildSlot(card);
             this.stackEl.appendChild(slot);
             return slot;
         });
@@ -528,9 +602,15 @@ export class PackOpeningPicker {
         this.stage.appendChild(this.stackEl);
     }
 
+    buildSlot(card) {
+        const slot = el('div', 'card-slot');
+        slot.appendChild(this.buildCard(card, true));
+        return slot;
+    }
+
     layoutStack() {
         this.slots.forEach((slot, i) => {
-            if (i < this.index) return;
+            if (i < this.index || !slot) return;
             const depth = i - this.index;
             slot.style.setProperty('--d', Math.min(depth, STACK_VISIBLE_DEPTH));
             slot.style.zIndex = String(100 - depth);
@@ -628,11 +708,8 @@ export class PackOpeningPicker {
         if (!card) return;
         announcePick(card.participant.id);
 
-        this.counter.textContent = `Carte ${this.index + 1} / ${this.cards.length}`;
         this.root.dataset.glow = card.rarity.shiny ? card.rarity.id : '';
-        this.hint.textContent = this.index === this.cards.length - 1
-            ? "Dernière carte ! Glisse-la pour voir l'ordre de passage"
-            : '← Glisse la carte pour passer à la suivante →';
+        this.updateProgress();
 
         if (card.rarity.shiny) {
             this.showBanner(card.rarity);
@@ -641,6 +718,13 @@ export class PackOpeningPicker {
         if (card.rarity.id === 'ultra' || card.rarity.id === 'crown') {
             this.fireConfetti(card.rarity);
         }
+    }
+
+    updateProgress() {
+        this.counter.textContent = `Carte ${this.index + 1} / ${this.cards.length}`;
+        this.hint.textContent = this.index === this.cards.length - 1
+            ? "Dernière carte ! Glisse-la pour voir l'ordre de passage"
+            : '← Glisse la carte pour passer à la suivante →';
     }
 
     showBanner(rarity) {
