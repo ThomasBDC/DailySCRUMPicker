@@ -27,7 +27,7 @@ const TYPES = [
     { label: 'Dragon',     icon: '🐉', colors: ['#f7e3a6', '#5a8f7b'] }
 ];
 
-const MOVES = [
+export const MOVES = [
     { name: 'Stand-up éclair', dmg: 30, text: "Résume sa journée d'hier en 15 secondes chrono." },
     { name: 'Merge Conflict', dmg: 60, text: 'Lance une pièce. Si face, la branche main est cassée.' },
     { name: 'Hotfix du vendredi', dmg: 90, text: "Inflige aussi 10 dégâts au moral de l'équipe." },
@@ -58,6 +58,32 @@ const FLAVORS = [
 ];
 
 const WEAKNESSES = ['Réunions', 'Lundis matin', 'Bugs en prod', 'Wi-Fi capricieux', 'Mails « urgent »', 'Specs floues'];
+
+const PROPOSED_ATTACKS = 3;        // attaques proposées par défaut à chaque participant
+
+// Attaques proposées pour la carte d'un participant (noms pris dans la liste générale)
+export function proposeAttacks(count = PROPOSED_ATTACKS) {
+    return shuffle(MOVES).slice(0, count).map(move => move.name);
+}
+
+// Une attaque configurée n'a qu'un nom : elle reprend les dégâts et le texte de l'attaque
+// générale du même nom, sinon ses dégâts sont tirés au hasard, sans texte
+function attackFromName(name) {
+    const known = MOVES.find(move => move.name.toLowerCase() === name.toLowerCase());
+    if (known) return { ...known, name };
+    return { name, dmg: randomInt(1, 12) * 10, text: '' };
+}
+
+// Attaques d'une carte : tirées dans la liste du participant s'il en a, sinon dans la liste générale
+function pickMoves(participant, rarity) {
+    const own = Array.isArray(participant.attacks) ? participant.attacks : [];
+    if (own.length === 0) return shuffle(MOVES).slice(0, rarity.moves);
+    return shuffle(own).slice(0, rarity.moves).map(attackFromName);
+}
+
+function attacksSignature(participant) {
+    return Array.isArray(participant.attacks) ? participant.attacks.join('\u0001') : '';
+}
 
 const CUT_THRESHOLD = 0.75;        // part de la largeur du paquet à découper pour l'ouvrir
 // Le découpage peut commencer n'importe où sur la largeur de l'écran, dans une bande
@@ -323,7 +349,14 @@ export class PackOpeningPicker {
         const byId = new Map(this.participants.map(p => [p.id, p]));
         const upcoming = previousUpcoming
             .filter(card => byId.has(card.participant.id))
-            .map(card => ({ ...card, participant: byId.get(card.participant.id) }));
+            .map(card => {
+                const participant = byId.get(card.participant.id);
+                // Attaques modifiées dans la configuration : on les retire
+                const moves = attacksSignature(participant) === attacksSignature(card.participant)
+                    ? card.moves
+                    : pickMoves(participant, card.rarity);
+                return { ...card, participant, moves };
+            });
 
         // Les nouveaux venus sont glissés à une place au hasard parmi les cartes restantes
         const takenIds = new Set([...kept, ...upcoming].map(card => card.participant.id));
@@ -335,7 +368,7 @@ export class PackOpeningPicker {
             });
 
         const signature = cards => cards
-            .map(card => `${card.participant.id}|${card.participant.name}|${card.participant.faceUrl}`)
+            .map(card => `${card.participant.id}|${card.participant.name}|${card.participant.faceUrl}|${attacksSignature(card.participant)}`)
             .join('\n');
         if (signature(upcoming) === signature(previousUpcoming)) return;
 
@@ -431,7 +464,7 @@ export class PackOpeningPicker {
             rarity,
             type: pick(TYPES),
             hp: randomInt(rarity.hp[0] / 10, rarity.hp[1] / 10) * 10,
-            moves: shuffle(MOVES).slice(0, rarity.moves),
+            moves: pickMoves(participant, rarity),
             weakness: pick(WEAKNESSES),
             flavor: pick(FLAVORS),
             coffees: randomInt(1, 9)
@@ -677,7 +710,8 @@ export class PackOpeningPicker {
                 el('span', 'move-name', move.name),
                 el('span', 'move-dmg', move.dmg ? String(move.dmg) : '')
             );
-            moveEl.append(head, el('p', 'move-text', move.text));
+            moveEl.appendChild(head);
+            if (move.text) moveEl.appendChild(el('p', 'move-text', move.text));
             moves.appendChild(moveEl);
         });
         moves.appendChild(el('p', 'card-flavor', card.flavor));
