@@ -9,7 +9,7 @@ import { UNSPLASH_KEY_STORAGE, parseUnsplashKey } from './unsplash.js';
 import { MUSIC_STORAGE_KEY, parseMusicSettings } from './music.js';
 import { exportSounds, parseSounds, replaceSounds } from './soundStore.js';
 import { PACK_SOUND_KEY } from './packSounds.js';
-import { SEARCH_DURATION_KEY, parseSearchDuration } from './ovniSettings.js';
+import { SEARCH_DURATION_KEY, parseSearchDuration, DECOR_KEY, parseDecor } from './ovniSettings.js';
 import { GAME_DURATION_KEY, TAPTAUP_SOUND_KEY, parseGameDuration } from './taptaupSettings.js';
 import { cleanAttacks } from './participants.js';
 
@@ -47,6 +47,12 @@ export const SETTINGS = [
         read: raw => Number(raw),
         write: value => String(value),
         parse: parseSearchDuration
+    },
+    {
+        // Décor de la scène de l'enlèvement OVNI (Fall Guys par défaut, ou nuit)
+        name: 'ovniDecor',
+        storageKey: DECOR_KEY,
+        parse: parseDecor
     },
     {
         // Durée de la partie de Tap Taupe avant que le marteau choisisse, en secondes

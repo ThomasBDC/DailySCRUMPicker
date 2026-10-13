@@ -1,5 +1,8 @@
 import { Halo } from './halo.js';
 import { Arena } from './arena.js';
+import { FallGuysDecor } from './fallGuysDecor.js';
+
+const NIGHT_COLOR = 0x1a1a2a;
 
 // Traque de l'élu (s) : il court au moins HUNT_MIN_TIME sous le projecteur, est attrapé dès que
 // le faisceau le tient, et au plus tard après HUNT_MAX_TIME. Le projecteur atteint sa pleine
@@ -10,14 +13,15 @@ const HUNT_FOCUS_TIME = 0.7;
 const HUNT_CATCH_DISTANCE = 0.9; // distance faisceau-élu suffisante pour l'attraper
 
 export class Scene {
-    constructor() {
+    // decor : 'fallguys' ou 'night' (voir ovniSettings.js)
+    constructor(decor) {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1a1a2a);
-        this.scene.fog = new THREE.Fog(0x1a1a2a, 25, 70);
         this.setupCamera();
         this.setupLights();
         this.setupSpotlight();
         this.setupRenderer();
+        this.decor = null;
+        this.setDecor(decor);
         // Zone de course : tout le sol visible à l'écran (recalculée au redimensionnement)
         this.arena = new Arena();
         this.arena.fitCamera(this.camera);
@@ -43,6 +47,33 @@ export class Scene {
         const dirLight = new THREE.DirectionalLight(0x88aaff, 0.6);
         dirLight.position.set(-12, 25, -8);
         this.scene.add(dirLight);
+
+        // Éclairage du décor de nuit (les autres décors ont le leur)
+        this.nightLights = [ambient, dirLight];
+    }
+
+    // Change de décor : nuit (fond uni) ou Fall Guys
+    setDecor(name) {
+        if (this.decor) {
+            this.scene.remove(this.decor.group);
+            this.decor.dispose();
+            this.decor = null;
+        }
+        if (name === 'fallguys') {
+            this.decor = new FallGuysDecor(this.renderer.capabilities.getMaxAnisotropy());
+            this.scene.add(this.decor.group);
+        }
+        const night = !this.decor;
+        this.nightLights.forEach((light) => { light.visible = night; });
+        this.scene.background = night ? new THREE.Color(NIGHT_COLOR) : this.decor.background;
+        this.scene.fog = night ? new THREE.Fog(NIGHT_COLOR, 25, 70) : this.decor.fog;
+        this.beamOpacity = night ? 0.1 : this.decor.beamOpacity;
+        this.setBeamFade(this._beamFade ?? 1);
+    }
+
+    // Anime le décor (l'OVNI lui fait de l'ombre quand son projecteur est allumé)
+    updateDecor(dt) {
+        if (this.decor) this.decor.update(dt, this.spotlight.visible);
     }
 
     setupSpotlight() {
@@ -137,7 +168,8 @@ export class Scene {
 
     // Atténue le faisceau volumétrique (1 = normal, 0 = invisible)
     setBeamFade(fade) {
-        if (this.spotlightBeam) this.spotlightBeam.material.opacity = 0.1 * fade;
+        this._beamFade = fade;
+        if (this.spotlightBeam) this.spotlightBeam.material.opacity = this.beamOpacity * fade;
     }
 
     // Début de la recherche : le faisceau entre par un coin du fond et plonge sur le terrain

@@ -8,7 +8,7 @@ import { PackOpeningPicker } from './pack.js';
 import { AudioManager } from './audio.js';
 import { MusicPanel } from './musicPanel.js';
 import { setupSettingsTransfer, PICKER_TYPES } from './settings.js';
-import { loadSearchDuration, saveSearchDuration, formatSeconds, SEARCH_DURATION_MIN, SEARCH_DURATION_MAX } from './ovniSettings.js';
+import { loadSearchDuration, saveSearchDuration, formatSeconds, SEARCH_DURATION_MIN, SEARCH_DURATION_MAX, loadDecor, saveDecor } from './ovniSettings.js';
 import { CardsModal } from './cardsModal.js';
 
 class Game {
@@ -36,6 +36,8 @@ class Game {
         this._raceTimer = null;
         // Durée de la course avant que l'OVNI choisisse (s), réglable dans le panneau
         this.searchDuration = loadSearchDuration();
+        // Décor de la scène (Fall Guys ou nuit), réglable dans le panneau
+        this.ovniDecor = loadDecor();
         this.bindOvniSettings();
         
         this.participantManager = new ParticipantManager();
@@ -52,11 +54,12 @@ class Game {
         
         // Initialiser le bon mode dès le départ
         if (this.currentPicker === '3d') {
-            this.scene = new Scene();
+            this.scene = new Scene(this.ovniDecor);
         }
         
-        this.init();
+        // Avant init(), qui lance déjà la boucle d'animation (sinon le premier dt vaut NaN)
         this._lastTick = performance.now();
+        this.init();
         
         // Ajouter le gestionnaire pour le changement de type de picker
         document.querySelectorAll('input[name="picker-type"]').forEach((radio) => {
@@ -97,7 +100,7 @@ class Game {
             }
         } else if (this.currentPicker === '3d') {
             if (!this.scene) {
-                this.scene = new Scene();
+                this.scene = new Scene(this.ovniDecor);
             }
             this.scene.renderer.domElement.style.display = 'block';
             this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
@@ -203,15 +206,29 @@ class Game {
                 this.wheel.canvas.style.display = 'none';
             }
             if (!this.scene) {
-                this.scene = new Scene();
+                this.scene = new Scene(this.ovniDecor);
                 this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
             }
             this.scene.renderer.domElement.style.display = 'block';
+            // Nouveau tour : tous les participants reviennent sur le terrain (comme les autres
+            // sélecteurs, qui reçoivent la liste ci-dessus), sans attendre « Commencer »
+            this.resetGame();
+            this.createPersons(this.participantManager.participants);
         }
     }
 
-    // Curseur « Durée de la recherche » du mode Enlèvement OVNI
+    // Curseur « Durée de la recherche » et choix du décor du mode Enlèvement OVNI
     bindOvniSettings() {
+        const decorSelect = document.getElementById('ovni-decor');
+        if (decorSelect) {
+            decorSelect.value = this.ovniDecor;
+            decorSelect.addEventListener('change', () => {
+                this.ovniDecor = decorSelect.value;
+                saveDecor(this.ovniDecor);
+                if (this.scene) this.scene.setDecor(this.ovniDecor);
+            });
+        }
+
         const input = document.getElementById('ovni-search-duration');
         const output = document.getElementById('ovni-search-duration-value');
         if (!input) return;
@@ -274,7 +291,7 @@ class Game {
 
         // Mode 3D
         if (!this.scene) {
-            this.scene = new Scene();
+            this.scene = new Scene(this.ovniDecor);
             this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
         }
 
@@ -370,7 +387,7 @@ class Game {
 
         // Mode 3D
         if (!this.scene) {
-            this.scene = new Scene();
+            this.scene = new Scene(this.ovniDecor);
             this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
         }
 
@@ -553,6 +570,7 @@ class Game {
         // Pendant la course, ils fuient le faisceau qui les cherche
         const danger = this.running ? this.scene.spotlightTarget.position : null;
         this.persons.forEach(person => person.update(this.persons, dt, danger));
+        this.scene.updateDecor(dt);
 
         if (this.running) {
             // Le projecteur cherche parmi les coureurs

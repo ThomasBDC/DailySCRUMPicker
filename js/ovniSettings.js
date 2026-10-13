@@ -42,3 +42,36 @@ export function saveSearchDuration(seconds) {
 export function formatSeconds(seconds) {
     return `${String(seconds).replace('.', ',')} s`;
 }
+
+// Décor de la scène : « fallguys » (plateforme d'hexagones au-dessus du slime) ou « night »
+// (fond nuit uni, le décor d'origine)
+export const DECOR_KEY = 'dsp_ovni_decor';
+export const DECORS = ['fallguys', 'night'];
+export const DECOR_DEFAULT = 'fallguys';
+
+// Valide un décor importé : null pour la valeur par défaut, erreur s'il est inconnu
+export function parseDecor(value) {
+    if (value === null) return null;
+    if (!DECORS.includes(value)) throw new Error(`Décor OVNI inconnu : ${value}`);
+    return value === DECOR_DEFAULT ? null : value;
+}
+
+export function loadDecor() {
+    try {
+        const raw = localStorage.getItem(DECOR_KEY);
+        if (raw !== null) return parseDecor(raw) ?? DECOR_DEFAULT;
+    } catch (_) {
+        // Valeur illisible : décor par défaut
+    }
+    return DECOR_DEFAULT;
+}
+
+// Seul un décor différent de celui par défaut est stocké
+export function saveDecor(decor) {
+    try {
+        if (decor === DECOR_DEFAULT) localStorage.removeItem(DECOR_KEY);
+        else localStorage.setItem(DECOR_KEY, decor);
+    } catch (error) {
+        console.warn('Erreur lors de la sauvegarde du décor :', error);
+    }
+}

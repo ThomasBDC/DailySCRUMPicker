@@ -919,7 +919,7 @@ export class TapTaupePicker {
         if (this.state === 'empty') {
             message = ['Le jardin est vide', 'Ajoutez des participants pour faire sortir les taupes.'];
         } else if (this.state === 'done') {
-            message = ['Tout le monde est passé !', 'Bon daily 🎉'];
+            message = ['Tout le monde est passé !', '🎉'];
         }
         if (message) {
             this.message.replaceChildren(el('strong', '', message[0]), el('span', '', message[1]));
