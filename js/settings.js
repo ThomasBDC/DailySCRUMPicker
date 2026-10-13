@@ -10,6 +10,7 @@ import { MUSIC_STORAGE_KEY, parseMusicSettings } from './music.js';
 import { exportSounds, parseSounds, replaceSounds } from './soundStore.js';
 import { PACK_SOUND_KEY } from './packSounds.js';
 import { SEARCH_DURATION_KEY, parseSearchDuration } from './ovniSettings.js';
+import { GAME_DURATION_KEY, TAPTAUP_SOUND_KEY, parseGameDuration } from './taptaupSettings.js';
 import { cleanAttacks } from './participants.js';
 
 export const PICKER_TYPES = ['3d', 'wheel', 'taptaup', 'pack'];
@@ -46,6 +47,26 @@ export const SETTINGS = [
         read: raw => Number(raw),
         write: value => String(value),
         parse: parseSearchDuration
+    },
+    {
+        // Durée de la partie de Tap Taupe avant que le marteau choisisse, en secondes
+        name: 'taptaupDuration',
+        storageKey: GAME_DURATION_KEY,
+        read: raw => Number(raw),
+        write: value => String(value),
+        parse: parseGameDuration
+    },
+    {
+        // Bruitages du Tap Taupe, activés par défaut : seul « off » est stocké
+        name: 'taptaupSound',
+        storageKey: TAPTAUP_SOUND_KEY,
+        read: raw => raw !== 'off',
+        write: value => (value ? 'on' : 'off'),
+        parse: value => {
+            if (value === null) return null;
+            if (typeof value !== 'boolean') throw new Error('Réglage des bruitages du Tap Taupe invalide');
+            return value ? null : false;
+        }
     },
     {
         name: 'packLabel',

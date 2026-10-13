@@ -53,8 +53,6 @@ class Game {
         // Initialiser le bon mode dès le départ
         if (this.currentPicker === '3d') {
             this.scene = new Scene();
-        } else if (this.currentPicker === 'taptaup') {
-            this.taptaup = new TapTaupePicker(document.body);
         }
         
         this.init();
@@ -87,20 +85,10 @@ class Game {
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
             }
-            if (this.taptaup) {
-                this.taptaup.renderer.domElement.style.display = 'none';
-            }
         } else if (this.currentPicker === 'taptaup') {
-            if (!this.taptaup) {
-                this.taptaup = new TapTaupePicker(document.body);
-            }
-            this.taptaup.renderer.domElement.style.display = 'block';
-            this.taptaup.renderer.domElement.addEventListener('click', () => this.handleClick());
+            this.taptaup = new TapTaupePicker(document.body, this.audioManager);
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
-            }
-            if (this.wheel) {
-                this.wheel.canvas.style.display = 'none';
             }
         } else if (this.currentPicker === 'pack') {
             this.pack = new PackOpeningPicker(document.body, this.audioManager);
@@ -113,9 +101,6 @@ class Game {
             }
             this.scene.renderer.domElement.style.display = 'block';
             this.scene.renderer.domElement.addEventListener('click', () => this.handleClick());
-            if (this.taptaup) {
-                this.taptaup.renderer.domElement.style.display = 'none';
-            }
             if (this.wheel) {
                 this.wheel.canvas.style.display = 'none';
             }
@@ -170,15 +155,15 @@ class Game {
         if (this.pack && type !== 'pack') {
             this.pack.hide();
         }
+        if (this.taptaup && type !== 'taptaup') {
+            this.taptaup.hide();
+        }
         if (type === 'pack') {
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
             }
             if (this.wheel) {
                 this.wheel.canvas.style.display = 'none';
-            }
-            if (this.taptaup) {
-                this.taptaup.renderer.domElement.style.display = 'none';
             }
             if (!this.pack) {
                 this.pack = new PackOpeningPicker(document.body, this.audioManager);
@@ -189,9 +174,6 @@ class Game {
         } else if (type === 'wheel') {
             if (this.scene) {
                 this.scene.renderer.domElement.style.display = 'none';
-            }
-            if (this.taptaup) {
-                this.taptaup.renderer.domElement.style.display = 'none';
             }
             if (!this.wheel) {
                 this.wheel = new WheelPicker(document.body, this.audioManager);
@@ -210,22 +192,15 @@ class Game {
                 this.wheel.canvas.style.display = 'none';
             }
             if (!this.taptaup) {
-                this.taptaup = new TapTaupePicker(document.body);
-                this.taptaup.renderer.domElement.addEventListener('click', () => this.handleClick());
-                // Si des participants sont déjà configurés, les ajouter
-                if (this.participantManager.participants.length > 0) {
-                    this.taptaup.setParticipants(this.participantManager.participants);
-                }
+                this.taptaup = new TapTaupePicker(document.body, this.audioManager);
             } else {
-                this.taptaup.renderer.domElement.style.display = 'block';
+                this.taptaup.show();
             }
+            this.taptaup.setParticipants(this.participantManager.participants);
         } else {
             // Mode 3D
             if (this.wheel) {
                 this.wheel.canvas.style.display = 'none';
-            }
-            if (this.taptaup) {
-                this.taptaup.renderer.domElement.style.display = 'none';
             }
             if (!this.scene) {
                 this.scene = new Scene();
@@ -265,6 +240,10 @@ class Game {
         if (wheelSettings) {
             wheelSettings.hidden = this.currentPicker !== 'wheel';
         }
+        const taptaupSettings = document.getElementById('taptaup-settings');
+        if (taptaupSettings) {
+            taptaupSettings.hidden = this.currentPicker !== 'taptaup';
+        }
     }
 
     createPersons(participants) {
@@ -278,8 +257,7 @@ class Game {
 
         if (this.currentPicker === 'taptaup') {
             if (!this.taptaup) {
-                this.taptaup = new TapTaupePicker(document.body);
-                this.taptaup.renderer.domElement.addEventListener('click', () => this.handleClick());
+                this.taptaup = new TapTaupePicker(document.body, this.audioManager);
             }
             this.taptaup.setParticipants(participants);
             return;
@@ -376,13 +354,9 @@ class Game {
         }
 
         if (this.currentPicker === 'taptaup') {
+            // Une partie en cours est interrompue par le sélecteur lui-même
             if (this.taptaup) {
-                // Un tirage en cours viserait un personnage recréé : on l'interrompt
-                const drawInProgress = this.taptaup.running || this.taptaup.selectionPhase || this.taptaup.zoomPhase;
                 this.taptaup.setParticipants(participants);
-                if (drawInProgress) {
-                    this.taptaup.reset();
-                }
             }
             return;
         }
@@ -480,17 +454,6 @@ class Game {
     }
 
     handleClick() {
-        if (this.currentPicker === 'taptaup') {
-            if (this.taptaup && this.taptaup.persons.length > 0) {
-                if (!this.taptaup.running && !this.taptaup.zoomPhase) {
-                    this.taptaup.startSelection();
-                } else if (this.taptaup.zoomPhase) {
-                    this.taptaup.removeSelectedPerson();
-                }
-            }
-            return;
-        }
-
         if (this.persons.length === 0) return;
 
         if (!this.running && !this.spotlightPhase) {
@@ -741,8 +704,6 @@ class Game {
         if (this.currentPicker === '3d' && this.scene) {
             this.update();
             this.scene.render();
-        } else if (this.currentPicker === 'taptaup' && this.taptaup) {
-            // L'animation est gérée par TapTaupePicker lui-même
         }
     }
 }

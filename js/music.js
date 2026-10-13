@@ -13,7 +13,7 @@ export const MUSIC_STORAGE_KEY = 'dsp_music';
 // Moments où une musique est jouée
 export const MOMENTS = ['shuffle', 'pick'];
 // Modes de jeu qui jouent les musiques
-export const MUSIC_MODES = ['3d', 'wheel'];
+export const MUSIC_MODES = ['3d', 'wheel', 'taptaup'];
 
 export function builtinTrack(name) {
     return { id: `builtin:${name}`, source: 'builtin', title: BUILTIN_SOUNDS[name].title };
@@ -23,7 +23,7 @@ export const BUILTIN_TRACKS = Object.keys(BUILTIN_SOUNDS).map(builtinTrack);
 
 export const MUSIC_DEFAULTS = {
     volume: 0.8,
-    enabled: { '3d': true, wheel: true },
+    enabled: { '3d': true, wheel: true, taptaup: true },
     shuffle: [builtinTrack('drumroll'), builtinTrack('chase')],
     pick: [builtinTrack('fanfare'), builtinTrack('ufo')],
 };

@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles/wheel.css">
     <link rel="stylesheet" href="styles/modal.css">
     <link rel="stylesheet" href="styles/pack.css">
+    <link rel="stylesheet" href="styles/taptaup.css">
     <link rel="stylesheet" href="styles/music.css">
 </head>
 <body>
@@ -101,13 +102,7 @@
                     <label class="mode-card">
                         <input type="radio" name="picker-type" value="taptaup">
                         <span class="mode-icon">🔨</span>
-                        <span class="mode-text">
-                            <span class="mode-title-row">
-                                <strong>Tap Taupe</strong>
-                                <span class="mode-badge">dev in progress</span>
-                            </span>
-                            <small>Les participants sortent de leur trou</small>
-                        </span>
+                        <span class="mode-text"><strong>Tap Taupe</strong><small>Les taupes sortent de leur trou, le marteau assomme l'élu</small></span>
                     </label>
                     <label class="mode-card">
                         <input type="radio" name="picker-type" value="pack">
@@ -132,6 +127,30 @@
                         <label class="switch-row">
                             <span class="switch-text"><strong>Musiques</strong><small>Pendant la course et quand l'OVNI choisit (onglet Musiques)</small></span>
                             <input type="checkbox" class="switch" data-music-mode="3d">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Réglages propres au mode Tap Taupe -->
+                <div id="taptaup-settings" class="wheel-settings" hidden>
+                    <h3 class="section-title">Réglages du Tap Taupe</h3>
+
+                    <div class="setting-range">
+                        <div class="setting-range-head">
+                            <label for="taptaup-duration" class="field-label">Durée de la partie</label>
+                            <output class="setting-value" id="taptaup-duration-value" for="taptaup-duration"></output>
+                        </div>
+                        <input type="range" id="taptaup-duration" class="range-field" min="2" max="15" step="1">
+                    </div>
+
+                    <div class="switch-list">
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Musiques</strong><small>Pendant la partie et quand le marteau frappe (onglet Musiques)</small></span>
+                            <input type="checkbox" class="switch" data-music-mode="taptaup">
+                        </label>
+                        <label class="switch-row">
+                            <span class="switch-text"><strong>Bruitages</strong><small>Taupes qui sortent, coups de marteau, « bonk » final</small></span>
+                            <input type="checkbox" class="switch" id="taptaup-sound-input">
                         </label>
                     </div>
                 </div>
