@@ -91,7 +91,7 @@
                     <label class="mode-card">
                         <input type="radio" name="picker-type" value="3d">
                         <span class="mode-icon">🏃</span>
-                        <span class="mode-text"><strong>Enlèvenement OVNI</strong><small>Tout le monde court, le projecteur choisit</small></span>
+                        <span class="mode-text"><strong>Enlèvement OVNI</strong><small>Tout le monde court, le projecteur choisit</small></span>
                     </label>
                     <label class="mode-card">
                         <input type="radio" name="picker-type" value="wheel">
@@ -119,6 +119,15 @@
                 <!-- Réglages propres au mode Enlèvement OVNI -->
                 <div id="ovni-settings" class="wheel-settings" hidden>
                     <h3 class="section-title">Réglages de l'enlèvement</h3>
+
+                    <div class="setting-range">
+                        <div class="setting-range-head">
+                            <label for="ovni-search-duration" class="field-label">Durée de la recherche</label>
+                            <output class="setting-value" id="ovni-search-duration-value" for="ovni-search-duration"></output>
+                        </div>
+                        <input type="range" id="ovni-search-duration" class="range-field" min="1" max="10" step="0.5">
+                    </div>
+
                     <div class="switch-list">
                         <label class="switch-row">
                             <span class="switch-text"><strong>Musiques</strong><small>Pendant la course et quand l'OVNI choisit (onglet Musiques)</small></span>

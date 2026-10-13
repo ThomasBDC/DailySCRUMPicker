@@ -8,6 +8,7 @@ import { PackOpeningPicker } from './pack.js';
 import { AudioManager } from './audio.js';
 import { MusicPanel } from './musicPanel.js';
 import { setupSettingsTransfer, PICKER_TYPES } from './settings.js';
+import { loadSearchDuration, saveSearchDuration, formatSeconds, SEARCH_DURATION_MIN, SEARCH_DURATION_MAX } from './ovniSettings.js';
 
 class Game {
     constructor() {
@@ -29,13 +30,12 @@ class Game {
         this.running = false;
         this.spotlightPhase = false;
         this.chosenIdx = null;
-        
-        // Propriétés pour le zoom de caméra
-        this.cameraZoomActive = false;
-        this.cameraOriginalPosition = null;
-        this.cameraOriginalTarget = null;
-        this.cameraZoomStart = null;
-        this.cameraZoomDuration = 1000; // ms pour le zoom in/out
+        // Personnages enlevés en train d'être aspirés dans l'OVNI
+        this.departing = [];
+        this._raceTimer = null;
+        // Durée de la course avant que l'OVNI choisisse (s), réglable dans le panneau
+        this.searchDuration = loadSearchDuration();
+        this.bindOvniSettings();
         
         this.participantManager = new ParticipantManager();
         this.participantManager.setGameReference(this);
@@ -231,6 +231,22 @@ class Game {
         }
     }
 
+    // Curseur « Durée de la recherche » du mode Enlèvement OVNI
+    bindOvniSettings() {
+        const input = document.getElementById('ovni-search-duration');
+        const output = document.getElementById('ovni-search-duration-value');
+        if (!input) return;
+        input.min = String(SEARCH_DURATION_MIN);
+        input.max = String(SEARCH_DURATION_MAX);
+        input.value = String(this.searchDuration);
+        if (output) output.textContent = formatSeconds(this.searchDuration);
+        input.addEventListener('input', () => {
+            this.searchDuration = Number(input.value);
+            saveSearchDuration(this.searchDuration);
+            if (output) output.textContent = formatSeconds(this.searchDuration);
+        });
+    }
+
     // Affiche les réglages propres au sélecteur courant dans le panneau de configuration
     updatePickerSettings() {
         const ovniSettings = document.getElementById('ovni-settings');
@@ -282,14 +298,16 @@ class Game {
 
         // Nettoyer les personnes existantes
         this.persons.forEach(person => {
+            person.dispose();
             this.scene.scene.remove(person.group);
         });
         this.persons = [];
-        
+        this.clearDepartures();
+
         // Créer les nouvelles personnes
         for (let i = 0; i < participants.length; i++) {
             const color = COLORS[i % COLORS.length];
-            const person = new Person(color, participants[i].faceUrl);
+            const person = new Person(color, participants[i].faceUrl, this.scene.arena);
             person.group.userData.name = participants[i].name;
             person.group.userData.participantId = participants[i].id;
             this.scene.scene.add(person.group);
@@ -321,7 +339,9 @@ class Game {
         } else {
             // Mode 3D
             this.spotlightPhase = false;
-            
+            clearTimeout(this._raceTimer);
+            this.clearDepartures();
+
             if (this.scene) {
                 // Masquer le spotlight et le halo
                 this.scene.spotlight.visible = false;
@@ -335,13 +355,8 @@ class Game {
             this.nameEl.style.display = 'none';
         }
         
-        // Arrêter toutes les personnes
-        this.persons.forEach(person => {
-            person.stopRunning();
-            // Remettre les personnes à leur position initiale
-            person.group.position.set(0, PERSON_RADIUS, 0);
-            person.group.rotation.set(0, 0, 0);
-        });
+        // Arrêter toutes les personnes et les remettre au sol, au repos
+        this.persons.forEach(person => person.reset());
         
         // Mettre à jour l'état du bouton de configuration
         this.updateConfigButtonState();
@@ -386,6 +401,7 @@ class Game {
         // Si aucun participant actif, masquer tous les personnages
         if (participants.length === 0) {
             this.persons.forEach(person => {
+                person.dispose();
                 this.scene.scene.remove(person.group);
             });
             this.persons = [];
@@ -482,42 +498,54 @@ class Game {
 
     startRace() {
         this.running = true;
-        this.persons.forEach(person => person.startRunning());
-        
+        this.persons.forEach(person => person.startRunning(this.persons));
+        this.scene.startScan();
+
         // Démarre la musique de sélection avec fade in
         this.audioManager.playSelectionMusic('3d');
-        setTimeout(() => {
+        this._raceTimer = setTimeout(() => {
             this.running = false;
-            this.persons.forEach(person => person.stopRunning());
-            
+
             // Arrête la musique avec fade out
             this.audioManager.stopSelectionMusic();
-            
+
+            // Tout le monde s'arrête, sauf l'élu qui détale sous le projecteur
             this.startSpotlightPhase();
-        }, 2000);
+        }, this.searchDuration * 1000);
     }
 
     startSpotlightPhase() {
-        this.chosenIdx = Math.floor(Math.random() * this.persons.length);
+        // L'élu est celui que le projecteur a sous la main (il bouge au hasard, le tirage aussi)
+        const candidate = this.scene.pickCatchCandidate(this.persons);
+        this.chosenIdx = candidate ? this.persons.indexOf(candidate) : Math.floor(Math.random() * this.persons.length);
         const chosenPerson = this.persons[this.chosenIdx];
 
         announcePick(chosenPerson.group.userData.participantId);
+
+        // Les autres s'arrêtent et se retournent pour regarder l'élu,
+        // qui continue de courir en paniquant pendant que le projecteur le traque
+        this.persons.forEach(person => {
+            if (person === chosenPerson) return;
+            person.stopRunning();
+            person.watch(chosenPerson.group.position);
+        });
+        chosenPerson.panic();
 
         // Musique de la personne choisie
         this.audioManager.playPickSound('3d');
 
         this.scene.spotlight.visible = true;
         if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
-        // Pas de halo pendant la transition de lock
+        this.scene.setBeamFade(1);
+        // Pas de halo pendant la traque
         if (this.scene.halo) this.scene.halo.setVisible(false);
         this.spotlightPhase = true;
 
-        // Configuration transition de lock
-        this._lockStart = performance.now();
-        this._lockDuration = 800; // ms
-        this._locking = true;
+        // Traque : le projecteur fond sur l'élu jusqu'à le tenir (voir update)
+        this._huntStart = performance.now();
+        this._hunting = true;
 
-        // Affiche le prénom (apparaîtra bien placé à la fin du lock)
+        // Affiche le prénom sous l'élu
         if (this.nameEl) {
             this.nameEl.textContent = chosenPerson.group.userData.name || '';
             this.nameEl.style.display = 'block';
@@ -527,205 +555,134 @@ class Game {
 
     removePerson() {
         this.audioManager.stopPickSound();
-        if (this.chosenIdx !== null && this.persons[this.chosenIdx]) {
-            const personToRemove = this.persons[this.chosenIdx];
-            this.scene.scene.remove(personToRemove.group);
+        const chosenPerson = this.chosenIdx !== null ? this.persons[this.chosenIdx] : null;
+        if (chosenPerson) {
+            // Il est aspiré dans l'OVNI avant de disparaître (voir updateDepartures)
             this.persons.splice(this.chosenIdx, 1);
+            chosenPerson.startDeparture();
+            this.departing.push(chosenPerson);
         }
-        
-        this.scene.spotlight.visible = false;
+        this.persons.forEach(person => person.watch(null));
+
         if (this.scene.halo) this.scene.halo.setVisible(false);
-        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = false;
         this.chosenIdx = null;
         this.spotlightPhase = false;
+        if (!chosenPerson) this.hideSpotlightIfIdle();
 
         // Masque l'étiquette
         if (this.nameEl) {
             this.nameEl.style.display = 'none';
         }
-
-        // Commencer le retour de la caméra
-        this.startCameraReset();
     }
 
     update() {
         if (!this.scene) return;  // Ne rien faire si la scène n'est pas active
-        
+
         const now = performance.now();
         const dt = Math.min((now - this._lastTick) / 1000, 0.05);
         this._lastTick = now;
 
+        // Course, dérapage à l'arrêt et attente (l'élu, lui, est animé par l'enlèvement)
+        // Pendant la course, ils fuient le faisceau qui les cherche
+        const danger = this.running ? this.scene.spotlightTarget.position : null;
+        this.persons.forEach(person => person.update(this.persons, dt, danger));
+
         if (this.running) {
-            this.persons.forEach(person => person.update(this.persons));
-            // Mouvement de projecteur en mode hélicoptère pendant que tout le monde court
+            // Le projecteur cherche parmi les coureurs
             this.scene.spotlight.visible = true;
             if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = true;
             if (this.scene.halo) this.scene.halo.setVisible(false);
+            this.scene.setBeamFade(1);
             this.scene.updateSpotlightScan(dt, this.persons);
         }
 
         if (this.spotlightPhase && this.chosenIdx !== null) {
             const chosenPerson = this.persons[this.chosenIdx];
             if (chosenPerson) {
-                // Transition de lock: rapprocher progressivement le faisceau de la personne
-                if (this._locking) {
-                    const t = Math.min(1, (performance.now() - this._lockStart) / this._lockDuration);
-                    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
-                    const from = this.scene._currentSpotTarget || chosenPerson.group.position;
-                    const to = chosenPerson.group.position;
-                    const target = new THREE.Vector3().copy(from).lerp(to, eased);
-                    if (this.scene.halo) this.scene.halo.setVisible(false);
-                    this.scene.updateSpotlight(target);
-
-                    if (t >= 1) {
-                        // Lock terminé: activer halo et démarrer une courte anticipation avant la montée
+                if (this._hunting) {
+                    // Traque : le faisceau fond sur l'élu qui court toujours
+                    const elapsed = (now - this._huntStart) / 1000;
+                    if (this.scene.huntSpotlight(dt, chosenPerson, elapsed)) {
+                        // Attrapé : le rayon le soulève puis l'amène devant la caméra (qui ne bouge pas)
+                        this._hunting = false;
                         if (this.scene.halo) this.scene.halo.setVisible(true);
-                        chosenPerson.group.liftStart = performance.now();
-                        chosenPerson.group.flyStart = null; // sera défini après l'anticipation
-                        chosenPerson.group.rotation.set(0, 0, 0);
-                        this._locking = false;
+                        chosenPerson.startAbduction(this.getShowcasePoint(), this.scene.camera.position);
+                        // Les autres sursautent, chacun avec son temps de réaction
+                        this.persons.forEach(person => {
+                            if (person !== chosenPerson) person.startle(Math.random() * 0.3);
+                        });
                     }
                 } else {
-                    this.scene.updateSpotlight(chosenPerson.group.position);
-                    this.updateFlyingAnimation(chosenPerson);
+                    chosenPerson.updateAbduction(dt);
+                    const fade = this.getBeamFade(chosenPerson);
+                    this.scene.setBeamFade(fade);
+                    if (this.scene.halo) this.scene.halo.setVisible(fade > 0.3);
+                    this.scene.followSpotlight(dt, chosenPerson.group.position);
                 }
                 // Met à jour la position de l'étiquette
                 this.updateNameLabelPosition();
             }
         }
 
-        // Gérer le retour de la caméra si nécessaire
-        if (!this.spotlightPhase && this.cameraZoomActive) {
-            this.resetCameraZoom();
-        }
+        this.updateDepartures(dt);
     }
 
-    updateFlyingAnimation(person) {
-        // Phase d'anticipation (pré-lift): légère flexion vers le bas avant de s'élever
-        if (person.group.liftStart && !person.group.flyStart) {
-            const elapsedLift = performance.now() - person.group.liftStart;
-            const preLiftDuration = 300; // ms
-            const t = Math.min(1, elapsedLift / preLiftDuration);
-            const easedIn = Math.pow(t, 2); // easeInQuad pour comprimer
-            const easedOut = 1 - Math.pow(1 - t, 2); // easeOutQuad pour release
-            // Petite descente (squat) puis retour à la base
-            const downAmt = 0.25; // unités monde
-            const baseY = PERSON_RADIUS;
-            // Descendre un peu puis remonter sur la fin de l'anticipation
-            const yOffset = (t < 0.5)
-                ? -downAmt * (easedIn * 2) // va vers -downAmt
-                : -downAmt * (1 - (easedOut * 2 - 1)); // remonte à 0
-            person.group.position.y = baseY + yOffset;
-            // Squash/Stretch très léger visuel via rotation X
-            person.group.rotation.x = -0.08 * Math.sin(t * Math.PI);
-            if (t >= 1) {
-                // Début de la montée
-                person.group.flyStart = performance.now();
-                person.group.liftStart = null;
-                // Reset rotation X pour la montée
-                person.group.rotation.x = 0;
-            }
-            return;
-        }
-        if (!person.group.flyStart) return;
-        
-        const elapsed = performance.now() - person.group.flyStart;
-        const riseDurationMs = 1200;
-        if (elapsed < riseDurationMs) {
-            const t = elapsed / riseDurationMs;
-            // Lissage pour une montée douce (easeOutCubic)
-            const eased = 1 - Math.pow(1 - t, 3);
-            person.group.position.y = PERSON_RADIUS + 4 * eased;
-            // Pas de rotation pendant la montée
-            return;
-        }
-
-        // Flottement 3D après la montée
-        const floatT = (elapsed - riseDurationMs) / 1000;
-        const baseY = PERSON_RADIUS + 4;
-        const bob = Math.sin(floatT * 2.2) * 0.3; // amplitude 0.3u
-        person.group.position.y = baseY + bob;
-
-        // Inclinaisons douces X/Z et légère rotation Y continue
-        person.group.rotation.x = Math.sin(floatT * 1.7) * 0.12;
-        person.group.rotation.z = Math.cos(floatT * 1.3) * 0.08;
-        person.group.rotation.y = floatT * 0.5; // ~0.5 rad/s
-
-        // Zoom de la caméra sur la personne qui flotte
-        this.updateCameraZoom(person);
-    }
-
-    updateCameraZoom(person) {
-        if (!this.scene || this.chosenIdx === null) return;
-
-        const chosenPerson = this.persons[this.chosenIdx];
-        if (!chosenPerson) return;
-
-        // Position cible de zoom : légèrement au-dessus et derrière la personne
-        const zoomTarget = chosenPerson.group.position.clone();
-        zoomTarget.y += PERSON_RADIUS * 1.5; // Au-dessus de la personne
-        zoomTarget.z += 3; // Légèrement derrière
-
-        // Position de zoom : plus proche de la personne
-        const zoomPosition = chosenPerson.group.position.clone();
-        zoomPosition.y += PERSON_RADIUS * 2.5; // Au-dessus
-        zoomPosition.z += 8; // Devant la personne
-        zoomPosition.x += 2; // Légèrement décalé sur le côté
-
-        if (!this.cameraZoomActive) {
-            // Sauvegarder la position et cible originale
-            this.cameraOriginalPosition = this.scene.camera.position.clone();
-            this.cameraOriginalTarget = new THREE.Vector3(0, 0, 0); // La caméra regarde vers l'origine
-            this.cameraZoomStart = performance.now();
-            this.cameraZoomActive = true;
-        }
-
-        const elapsed = performance.now() - this.cameraZoomStart;
-        const t = Math.min(1, elapsed / this.cameraZoomDuration);
-        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
-
-        // Interpoler la position de la caméra
-        this.scene.camera.position.lerpVectors(this.cameraOriginalPosition, zoomPosition, eased);
-        
-        // Interpoler la cible de la caméra
-        const currentTarget = new THREE.Vector3();
-        currentTarget.lerpVectors(this.cameraOriginalTarget, zoomTarget, eased);
-        this.scene.camera.lookAt(currentTarget);
-    }
-
-    resetCameraZoom() {
-        if (!this.cameraZoomActive || !this.scene || !this.cameraOriginalPosition) return;
-
-        const elapsed = performance.now() - this.cameraZoomStart;
-        const t = Math.min(1, elapsed / this.cameraZoomDuration);
-        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
-
-        // Position actuelle de la caméra
-        const currentPosition = this.scene.camera.position.clone();
-        
-        // Calculer la cible actuelle (point que la caméra regarde)
-        const currentDirection = new THREE.Vector3();
-        this.scene.camera.getWorldDirection(currentDirection);
-        const currentTarget = new THREE.Vector3().copy(this.scene.camera.position).add(currentDirection);
-
-        // Interpoler vers la position originale
-        this.scene.camera.position.lerpVectors(currentPosition, this.cameraOriginalPosition, eased);
-        this.scene.camera.lookAt(
-            new THREE.Vector3().lerpVectors(currentTarget, this.cameraOriginalTarget, eased)
+    // Point devant la caméra où l'élu vient se présenter : assez près pour bien le voir,
+    // en restant entier à l'écran (plus loin sur un écran étroit)
+    getShowcasePoint() {
+        const camera = this.scene.camera;
+        const halfTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+        const distance = Math.max(
+            2.4 / (0.35 * 2 * halfTan),               // ~35 % de la hauteur de l'écran
+            3.4 / (0.7 * 2 * halfTan * camera.aspect) // bras levés compris dans 70 % de la largeur
         );
-
-        // Si le retour est terminé, désactiver
-        if (t >= 1) {
-            this.cameraZoomActive = false;
-            this.cameraOriginalPosition = null;
-            this.cameraOriginalTarget = null;
-        }
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        const point = camera.position.clone().addScaledVector(forward, distance);
+        point.y += PERSON_RADIUS * 0.4; // laisse la place au prénom, affiché sous les pieds
+        this._showcaseDistanceXZ = Math.hypot(point.x - camera.position.x, point.z - camera.position.z);
+        return point;
     }
 
-    startCameraReset() {
-        if (!this.cameraZoomActive) return;
-        // Marquer le début du retour
-        this.cameraZoomStart = performance.now();
+    // Le faisceau s'efface quand l'élu approche de la caméra : sinon son cône voile tout l'écran
+    getBeamFade(person) {
+        const camera = this.scene.camera.position;
+        const distanceXZ = Math.hypot(person.group.position.x - camera.x, person.group.position.z - camera.z);
+        const showcase = this._showcaseDistanceXZ || 0;
+        return THREE.MathUtils.smoothstep(distanceXZ, showcase + 1, showcase + 6);
+    }
+
+    updateDepartures(dt) {
+        if (this.departing.length === 0) return;
+        this.departing = this.departing.filter(person => {
+            const done = person.updateDeparture(dt);
+            if (!this.running && !this.spotlightPhase) {
+                this.scene.setBeamFade(this.getBeamFade(person));
+                this.scene.updateSpotlight(person.group.position);
+            }
+            if (done) {
+                person.dispose();
+                this.scene.scene.remove(person.group);
+            }
+            return !done;
+        });
+        if (this.departing.length === 0) this.hideSpotlightIfIdle();
+    }
+
+    clearDepartures() {
+        if (this.scene) this.departing.forEach(person => {
+            person.dispose();
+            this.scene.scene.remove(person.group);
+        });
+        this.departing = [];
+    }
+
+    // Éteint le projecteur s'il ne sert plus (ni course, ni enlèvement en cours)
+    hideSpotlightIfIdle() {
+        if (!this.scene || this.running || this.spotlightPhase) return;
+        this.scene.spotlight.visible = false;
+        if (this.scene.halo) this.scene.halo.setVisible(false);
+        if (this.scene.spotlightBeam) this.scene.spotlightBeam.visible = false;
     }
 
     // Positionne #name-display sous la personne sélectionnée

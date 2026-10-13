@@ -9,6 +9,7 @@ import { UNSPLASH_KEY_STORAGE, parseUnsplashKey } from './unsplash.js';
 import { MUSIC_STORAGE_KEY, parseMusicSettings } from './music.js';
 import { exportSounds, parseSounds, replaceSounds } from './soundStore.js';
 import { PACK_SOUND_KEY } from './packSounds.js';
+import { SEARCH_DURATION_KEY, parseSearchDuration } from './ovniSettings.js';
 
 export const PICKER_TYPES = ['3d', 'wheel', 'taptaup', 'pack'];
 
@@ -36,6 +37,14 @@ export const SETTINGS = [
             if (!PICKER_TYPES.includes(value)) throw new Error(`Mode de jeu inconnu : ${value}`);
             return value;
         }
+    },
+    {
+        // Durée de la course avant que l'OVNI choisisse, en secondes
+        name: 'ovniSearchDuration',
+        storageKey: SEARCH_DURATION_KEY,
+        read: raw => Number(raw),
+        write: value => String(value),
+        parse: parseSearchDuration
     },
     {
         name: 'packLabel',

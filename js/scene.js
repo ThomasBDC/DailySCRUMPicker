@@ -1,5 +1,13 @@
 import { Halo } from './halo.js';
-import { SCENE_SIZE } from './constants.js';
+import { Arena } from './arena.js';
+
+// Traque de l'élu (s) : il court au moins HUNT_MIN_TIME sous le projecteur, est attrapé dès que
+// le faisceau le tient, et au plus tard après HUNT_MAX_TIME. Le projecteur atteint sa pleine
+// précision au bout de HUNT_FOCUS_TIME.
+const HUNT_MIN_TIME = 0.3;
+const HUNT_MAX_TIME = 0.7;
+const HUNT_FOCUS_TIME = 0.7;
+const HUNT_CATCH_DISTANCE = 0.9; // distance faisceau-élu suffisante pour l'attraper
 
 export class Scene {
     constructor() {
@@ -10,14 +18,16 @@ export class Scene {
         this.setupLights();
         this.setupSpotlight();
         this.setupRenderer();
-        // État pour le mouvement de scan du projecteur (hélicoptère)
-        this._scanAngle = Math.random() * Math.PI * 2;
-        this._scanSpeed = 0.35; // rad/s
-        // Rayon d'orbite basé sur la taille de scène, garde le faisceau à l'écran
-        this._scanRadius = Math.max(2, SCENE_SIZE * 0.5 - 2.5);
-        this._wobblePhase = Math.random() * Math.PI * 2;
-        this._scanCenter = new THREE.Vector3(0, 0, 0);
-        this._scanTarget = new THREE.Vector3(0, 0, 0);
+        // Zone de course : tout le sol visible à l'écran (recalculée au redimensionnement)
+        this.arena = new Arena();
+        this.arena.fitCamera(this.camera);
+        // Faisceau au sol : position et vitesse (il a de l'inertie), et ce qu'il vise
+        this._beamPos = new THREE.Vector3();
+        this._beamVel = new THREE.Vector3();
+        this._beamAim = new THREE.Vector3();
+        this._beamAimPerson = null;
+        this._beamAimTimer = 0;
+        this._beamTime = 0;
     }
 
     setupCamera() {
@@ -86,6 +96,7 @@ export class Scene {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.arena.fitCamera(this.camera);
     }
 
     updateSpotlight(position) {
@@ -98,8 +109,6 @@ export class Scene {
             this.spotlightCeilingY,
             position.z
         );
-        // Mémorise la cible actuelle utilisée (au sol) pour des transitions
-        this._currentSpotTarget = groundPos.clone();
 
         // Met à jour le halo
         if (this.halo) {
@@ -126,61 +135,120 @@ export class Scene {
         }
     }
 
-    // Mouvement du projecteur façon hélicoptère au-dessus des coureurs
+    // Atténue le faisceau volumétrique (1 = normal, 0 = invisible)
+    setBeamFade(fade) {
+        if (this.spotlightBeam) this.spotlightBeam.material.opacity = 0.1 * fade;
+    }
+
+    // Début de la recherche : le faisceau entre par un coin du fond et plonge sur le terrain
+    startScan() {
+        const arena = this.arena;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        this._beamPos.set(side * arena.halfX(arena.zFar), 0, arena.zFar);
+        this._beamVel.set(0, 0, 0);
+        this._beamAimPerson = null;
+        this._beamAimTimer = 0;
+    }
+
+    // Recherche : comme un opérateur, le projecteur vise un coureur (ou un coin du terrain),
+    // s'y rend avec de l'inertie, s'y attarde un instant, puis passe au suivant
     updateSpotlightScan(dt, persons = []) {
         if (!this.spotlight || !this.spotlight.visible) return;
+        this._beamTime += dt;
+        this._beamAimTimer -= dt;
+        if (this._beamAimTimer <= 0 || (this._beamAimPerson && !persons.includes(this._beamAimPerson))) {
+            this.#pickScanAim(persons);
+        }
 
-        // Centre: barycentre lissé des personnes
-        if (persons.length > 0) {
-            const center = new THREE.Vector3();
-            for (let i = 0; i < persons.length; i++) center.add(persons[i].group.position);
-            center.multiplyScalar(1 / persons.length);
-            this._scanCenter.lerp(center, 0.06);
+        const target = new THREE.Vector3();
+        if (this._beamAimPerson) {
+            // Il anticipe la course de celui qu'il suit
+            const person = this._beamAimPerson;
+            target.set(person.group.position.x, 0, person.group.position.z).addScaledVector(person.velocity, 0.3);
         } else {
-            this._scanCenter.lerp(new THREE.Vector3(0, 0, 0), 0.06);
+            target.copy(this._beamAim);
         }
+        this.arena.clamp(target, 1.2);
+        this.#stepBeam(dt, target, 4.2, 0.6);
 
-        // Avancement du scan avec légère oscillation
-        this._scanAngle += this._scanSpeed * dt;
-        this._wobblePhase += 1.5 * dt;
-        const wobbleR = 2.0 + Math.sin(this._wobblePhase * 1.3) * 1.0;
-        const r = this._scanRadius + wobbleR;
-        const offsetX = Math.cos(this._scanAngle) * r + Math.sin(this._wobblePhase) * 1.8;
-        const offsetZ = Math.sin(this._scanAngle) * r + Math.cos(this._wobblePhase * 0.8) * 1.8;
-        let desired = new THREE.Vector3(this._scanCenter.x + offsetX, 0, this._scanCenter.z + offsetZ);
-
-        // Bornage pour garantir que la cible reste dans la zone visible
-        const half = SCENE_SIZE / 2;
-        const pad = 1.2; // petit padding pour éviter le bord
-        desired.x = THREE.MathUtils.clamp(desired.x, -half + pad, half - pad);
-        desired.z = THREE.MathUtils.clamp(desired.z, -half + pad, half - pad);
-
-        // Parfois, attirer le faisceau vers un coureur proche pour l'effet de recherche
-        if (persons.length > 0) {
-            const beat = (performance.now() * 0.001) % 8;
-            if (beat > 2.0 && beat < 2.7) {
-                let best = null, bestD2 = Infinity;
-                for (let i = 0; i < persons.length; i++) {
-                    const p = persons[i].group.position;
-                    const dx = p.x - desired.x;
-                    const dz = p.z - desired.z;
-                    const d2 = dx * dx + dz * dz;
-                    if (d2 < bestD2) { bestD2 = d2; best = p; }
-                }
-                if (best) {
-                    desired.set(best.x, 0, best.z);
-                    // re-borner au cas où un coureur est près du bord
-                    desired.x = THREE.MathUtils.clamp(desired.x, -half + pad, half - pad);
-                    desired.z = THREE.MathUtils.clamp(desired.z, -half + pad, half - pad);
-                }
-            }
-        }
-
-        // Lissage de la cible du faisceau
-        this._scanTarget.lerp(desired, 1 - Math.exp(-5.0 * dt));
         // En mode scan, masquer le halo (uniquement visible lors du lock sur une personne)
         if (this.halo) this.halo.setVisible(false);
-        this.updateSpotlight(this._scanTarget);
+        this.#applyBeam(0.12);
+    }
+
+    #pickScanAim(persons) {
+        // Le plus souvent un coureur voisin de celui qu'il vient de suivre, parfois un coin vide
+        const candidates = persons.filter((person) => person !== this._beamAimPerson);
+        if (candidates.length > 0 && Math.random() < 0.75) {
+            const distance = (person) => person.group.position.distanceToSquared(this._beamPos);
+            candidates.sort((a, b) => distance(a) - distance(b));
+            this._beamAimPerson = candidates[Math.floor(Math.random() * Math.min(2, candidates.length))];
+            this._beamAimTimer = 0.6 + Math.random() * 0.7;
+        } else {
+            this._beamAimPerson = null;
+            this.arena.randomPoint(1.5, this._beamAim);
+            this._beamAimTimer = 0.45 + Math.random() * 0.5;
+        }
+    }
+
+    // Qui le projecteur attrape à la fin de la recherche : celui qu'il est en train de viser
+    // s'il n'est pas loin, sinon le plus proche de là où il se dirige (pas de demi-tour brusque)
+    pickCatchCandidate(persons) {
+        if (persons.length === 0) return null;
+        const ahead = new THREE.Vector3(this._beamPos.x, 0, this._beamPos.z).addScaledVector(this._beamVel, 0.3);
+        const distance = (person) => Math.hypot(person.group.position.x - ahead.x, person.group.position.z - ahead.z);
+        const aimed = this._beamAimPerson;
+        if (aimed && persons.includes(aimed) && distance(aimed) < 4) return aimed;
+        return persons.reduce((best, person) => (distance(person) < distance(best) ? person : best));
+    }
+
+    // L'OVNI a choisi : le faisceau fond sur l'élu, le dépasse, revient et se cale dessus,
+    // de plus en plus vif et précis. Renvoie true quand il le tient.
+    huntSpotlight(dt, person, elapsed) {
+        this._beamTime += dt;
+        const progress = Math.min(1, elapsed / HUNT_FOCUS_TIME);
+        const omega = 7 + 7 * progress;
+        const zeta = 0.45 + 0.3 * progress;
+        // Visée en avance de la course, juste assez pour compenser le retard du projecteur
+        const position = person.group.position;
+        const target = new THREE.Vector3(position.x, 0, position.z).addScaledVector(person.velocity, (2 * zeta) / omega);
+        this.#stepBeam(dt, target, omega, zeta);
+        this.#applyBeam(0.1 * (1 - progress));
+
+        const distance = Math.hypot(this._beamPos.x - position.x, this._beamPos.z - position.z);
+        return elapsed > HUNT_MAX_TIME
+            || (elapsed > HUNT_MIN_TIME && distance < HUNT_CATCH_DISTANCE && this._beamVel.length() < 6);
+    }
+
+    // Suit l'élu pendant l'enlèvement, avec un léger retard
+    followSpotlight(dt, position) {
+        this._beamTime += dt;
+        this.#stepBeam(dt, new THREE.Vector3(position.x, 0, position.z), 7, 0.85);
+        this.#applyBeam(0.03);
+    }
+
+    // Ressort amorti vers `target` (plan du sol) : omega = vivacité, zeta < 1 = dépasse un peu
+    #stepBeam(dt, target, omega, zeta) {
+        const steps = 2; // sous-pas pour rester stable quand l'image met du temps à venir
+        const h = Math.min(dt, 0.05) / steps;
+        for (let i = 0; i < steps; i++) {
+            const ax = omega * omega * (target.x - this._beamPos.x) - 2 * zeta * omega * this._beamVel.x;
+            const az = omega * omega * (target.z - this._beamPos.z) - 2 * zeta * omega * this._beamVel.z;
+            this._beamVel.x += ax * h;
+            this._beamVel.z += az * h;
+            this._beamPos.x += this._beamVel.x * h;
+            this._beamPos.z += this._beamVel.z * h;
+        }
+    }
+
+    // Place le faisceau, avec le léger tremblement de la main de l'opérateur
+    #applyBeam(tremor) {
+        const t = this._beamTime;
+        this.updateSpotlight(new THREE.Vector3(
+            this._beamPos.x + (Math.sin(t * 7.3) * 0.6 + Math.sin(t * 13.1 + 1.7) * 0.4) * tremor,
+            0,
+            this._beamPos.z + (Math.sin(t * 6.1 + 0.6) * 0.6 + Math.sin(t * 11.7 + 2.9) * 0.4) * tremor
+        ));
     }
 
     render() {
