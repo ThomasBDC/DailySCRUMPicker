@@ -807,6 +807,8 @@ export class WheelPicker {
 
         if (layout.length === 0) {
             this.drawEmptyWheel();
+            // Le centre reste affiché quand tout le monde est passé, sans « LANCER » : rien à tirer
+            this.drawHub({ label: false });
             return;
         }
 
@@ -920,7 +922,7 @@ export class WheelPicker {
         ctx.restore();
     }
 
-    drawHub() {
+    drawHub({ label = true } = {}) {
         const ctx = this.ctx;
         const R = this.radius;
         const cx = this.centerX;
@@ -960,7 +962,7 @@ export class WheelPicker {
         ctx.fillStyle = g;
         ctx.fill();
 
-        if (!this.spinState && !this.highlight && !this.drag) {
+        if (label && !this.spinState && !this.highlight && !this.drag) {
             ctx.fillStyle = '#1e2230';
             ctx.font = `800 ${Math.max(9, hubR * 0.34)}px Inter, system-ui, sans-serif`;
             ctx.textAlign = 'center';
@@ -1020,7 +1022,8 @@ export class WheelPicker {
         ctx.font = `500 ${Math.max(14, this.radius * 0.07)}px Inter, system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('Ajoutez des participants', this.centerX, this.centerY);
+        // Sous le centre, qui reste dessiné par-dessus
+        ctx.fillText('Ajoutez des participants', this.centerX, this.centerY + this.hubRadius() + this.radius * 0.14);
     }
 
     // ---------- Sons (synthétisés, pas de fichier à charger) ----------
