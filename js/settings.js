@@ -12,6 +12,7 @@ import { PACK_SOUND_KEY } from './packSounds.js';
 import { SEARCH_DURATION_KEY, parseSearchDuration, DECOR_KEY, parseDecor } from './ovniSettings.js';
 import { GAME_DURATION_KEY, TAPTAUP_SOUND_KEY, parseGameDuration } from './taptaupSettings.js';
 import { cleanAttacks } from './participants.js';
+import { panelWindow } from './configWindow.js';
 
 export const PICKER_TYPES = ['3d', 'wheel', 'taptaup', 'pack'];
 
@@ -225,10 +226,12 @@ export async function exportSettings() {
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    // Le lien est cliqué dans la fenêtre du panneau, qui peut être détachée
+    const doc = panelWindow().document;
+    const link = doc.createElement('a');
     link.href = url;
     link.download = `daily-scrum-picker-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
+    doc.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
@@ -284,11 +287,11 @@ export async function importSettings(file) {
         values = parseImport(JSON.parse(await file.text()));
     } catch (error) {
         console.error("Erreur lors de l'import de la configuration :", error);
-        alert(`Fichier invalide : impossible d'importer la configuration.\n${error.message}`);
+        panelWindow().alert(`Fichier invalide : impossible d'importer la configuration.\n${error.message}`);
         return;
     }
 
-    if (!confirm('Importer cette configuration ? Les réglages actuels seront remplacés et la page rechargée.')) {
+    if (!panelWindow().confirm('Importer cette configuration ? Les réglages actuels seront remplacés et la page rechargée.')) {
         return;
     }
 
@@ -296,7 +299,7 @@ export async function importSettings(file) {
         await writeSettings(values);
     } catch (error) {
         console.error("Erreur lors de l'enregistrement de la configuration :", error);
-        alert("Impossible d'enregistrer la configuration importée (stockage du navigateur plein ?).");
+        panelWindow().alert("Impossible d'enregistrer la configuration importée (stockage du navigateur plein ?).");
         return;
     }
 
@@ -309,7 +312,7 @@ export function setupSettingsTransfer() {
     document.getElementById('export-settings').addEventListener('click', () => {
         exportSettings().catch((error) => {
             console.error("Erreur lors de l'export de la configuration :", error);
-            alert("Impossible d'exporter la configuration.");
+            panelWindow().alert("Impossible d'exporter la configuration.");
         });
     });
     document.getElementById('import-settings').addEventListener('click', () => importInput.click());

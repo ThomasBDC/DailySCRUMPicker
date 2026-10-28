@@ -1,6 +1,7 @@
 import { announcePick } from './participants.js';
 import { resizeImage } from './image.js';
 import { UnsplashPicker } from './unsplash.js';
+import { panelElement } from './configWindow.js';
 
 export const WHEEL_SETTINGS_KEY = 'dsp_wheel_settings';
 // Image au centre de la roue : { src, credit: { name, url } | null }, stockée en JSON
@@ -194,7 +195,7 @@ export class WheelPicker {
     }
 
     bindSettings() {
-        const root = document.getElementById('wheel-settings');
+        const root = panelElement('wheel-settings');
         if (!root) return;
         this.settingInputs = root.querySelectorAll('[data-setting]');
         this.settingInputs.forEach((input) => {
@@ -228,7 +229,7 @@ export class WheelPicker {
 
     refreshSettingOutputs() {
         const units = { duration: 's', turns: 'tours', hubSize: '%' };
-        document.querySelectorAll('#wheel-settings [data-output]').forEach((output) => {
+        panelElement('wheel-settings')?.querySelectorAll('[data-output]').forEach((output) => {
             const key = output.dataset.output;
             output.textContent = `${this.settings[key]} ${units[key]}`;
         });
@@ -236,10 +237,10 @@ export class WheelPicker {
 
     // Image du centre : choisie sur le PC ou trouvée sur Unsplash
     bindHubImage() {
-        const fileInput = document.getElementById('wheel-hub-input');
-        this.hubThumb = document.getElementById('wheel-hub-thumb');
-        this.hubRemove = document.getElementById('wheel-hub-remove');
-        this.hubCredit = document.getElementById('wheel-hub-credit');
+        const fileInput = panelElement('wheel-hub-input');
+        this.hubThumb = panelElement('wheel-hub-thumb');
+        this.hubRemove = panelElement('wheel-hub-remove');
+        this.hubCredit = panelElement('wheel-hub-credit');
 
         if (fileInput) {
             fileInput.addEventListener('change', async () => {
@@ -253,11 +254,11 @@ export class WheelPicker {
                 }
             });
             this.hubThumb?.addEventListener('click', () => fileInput.click());
-            document.getElementById('wheel-hub-choose')?.addEventListener('click', () => fileInput.click());
+            panelElement('wheel-hub-choose')?.addEventListener('click', () => fileInput.click());
         }
         this.hubRemove?.addEventListener('click', () => this.setHubImage(null));
 
-        const unsplashRoot = document.getElementById('wheel-hub-unsplash');
+        const unsplashRoot = panelElement('wheel-hub-unsplash');
         if (unsplashRoot) this.unsplash = new UnsplashPicker(unsplashRoot, { onPick: image => this.setHubImage(image) });
 
         this.updateHubThumb();

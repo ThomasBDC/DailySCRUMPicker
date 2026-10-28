@@ -5,6 +5,7 @@
 
 import { announcePick, announceRoundReset } from './participants.js';
 import { TapTaupeSounds } from './taptaupSounds.js';
+import { panelElement } from './configWindow.js';
 import { formatSeconds } from './ovniSettings.js';
 import {
     loadGameDuration, saveGameDuration,
@@ -300,8 +301,8 @@ export class TapTaupePicker {
 
     // Réglages du mode (durée, bruitages) dans le panneau de configuration
     bindSettings() {
-        const input = document.getElementById('taptaup-duration');
-        const output = document.getElementById('taptaup-duration-value');
+        const input = panelElement('taptaup-duration');
+        const output = panelElement('taptaup-duration-value');
         if (input) {
             input.min = String(GAME_DURATION_MIN);
             input.max = String(GAME_DURATION_MAX);
@@ -315,7 +316,7 @@ export class TapTaupePicker {
             });
         }
 
-        const soundInput = document.getElementById('taptaup-sound-input');
+        const soundInput = panelElement('taptaup-sound-input');
         if (soundInput) {
             soundInput.checked = this.sounds.enabled;
             soundInput.addEventListener('change', () => this.sounds.setEnabled(soundInput.checked));

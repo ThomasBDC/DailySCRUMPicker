@@ -46,9 +46,15 @@
                 <h2>Configuration</h2>
                 <p class="offcanvas-subtitle">Les changements s'appliquent immédiatement</p>
             </div>
-            <button id="close-config" class="icon-button" title="Fermer (Échap)" aria-label="Fermer">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
-            </button>
+            <div class="offcanvas-header-actions">
+                <!-- Détache le panneau dans une fenêtre à part (pour ne partager que la scène) -->
+                <button id="detach-config" class="icon-button" title="Ouvrir dans une autre fenêtre" aria-label="Ouvrir dans une autre fenêtre">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
+                </button>
+                <button id="close-config" class="icon-button" title="Fermer (Échap)" aria-label="Fermer">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+                </button>
+            </div>
         </header>
 
         <nav class="panel-tabs" role="tablist">

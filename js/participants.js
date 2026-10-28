@@ -1,4 +1,5 @@
 import { resizeImage } from './image.js';
+import { ConfigWindow, panelElement, panelWindow } from './configWindow.js';
 
 export class Participant {
     constructor(name, faceUrl = null, display = true, id = null, attacks = undefined) {
@@ -63,6 +64,8 @@ export class ParticipantManager {
         this.nextId = 1;
         this.passedIds = []; // participants déjà tirés pendant le tour en cours, dans l'ordre
         this.currentId = null; // dernier participant tiré au sort (celui qui parle)
+        // Le panneau (et la modale des cartes) peut être détaché dans une autre fenêtre
+        this.configWindow = new ConfigWindow(['setup-form', 'cards-modal']);
 
         // S'assurer que le panneau est masqué au démarrage
         if (this.setupFormElement) {
@@ -83,8 +86,17 @@ export class ParticipantManager {
 
     setupListeners() {
         // Ouverture / fermeture du panneau
-        document.getElementById('config-button').addEventListener('click', () => this.openConfigPanel());
-        document.getElementById('close-config').addEventListener('click', () => this.closeConfigPanel());
+        document.getElementById('config-button').addEventListener('click', () => {
+            if (this.configWindow.isOpen()) this.configWindow.focus();
+            else this.openConfigPanel();
+        });
+        document.getElementById('close-config').addEventListener('click', () => {
+            // Fermer la fenêtre détachée remet le panneau dans la page
+            if (this.configWindow.isOpen()) this.configWindow.close();
+            else this.closeConfigPanel();
+        });
+        document.getElementById('detach-config').addEventListener('click', () => this.detachConfigPanel());
+        window.addEventListener('configWindowClosed', () => this.closeConfigPanel());
         this.overlayElement.addEventListener('click', (e) => {
             if (e.target === this.overlayElement) {
                 this.closeConfigPanel();
@@ -203,7 +215,20 @@ export class ParticipantManager {
         }
     }
 
+    // Le panneau part dans une autre fenêtre, où il reste ouvert jusqu'à ce qu'on la ferme
+    detachConfigPanel() {
+        if (!this.configWindow.open()) {
+            alert('Le navigateur a bloqué la nouvelle fenêtre : autorisez les fenêtres pop-up pour cette page.');
+            return;
+        }
+        this.openConfigPanel();
+        this.overlayElement?.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
     closeConfigPanel() {
+        // Détaché, le panneau reste affiché (« Commencer », Échap dans la page…)
+        if (this.configWindow.isOpen()) return;
         this.setupFormElement?.classList.remove('active');
         this.overlayElement?.classList.remove('active');
         document.body.style.overflow = '';
@@ -423,7 +448,7 @@ export class ParticipantManager {
         const present = all.filter(p => p.display).length;
         const passed = all.filter(p => this.passedIds.includes(p.id)).length;
         const remaining = all.filter(p => p.display && !this.passedIds.includes(p.id)).length;
-        document.getElementById('participants-count').textContent = String(all.length);
+        panelElement('participants-count').textContent = String(all.length);
         document.getElementById('config-count').textContent = this.isRoundActive() ? `${passed}/${passed + remaining}` : String(present);
         let summary = '';
         if (this.isRoundActive()) {
@@ -431,9 +456,9 @@ export class ParticipantManager {
         } else if (all.length) {
             summary = `${present} présent${present > 1 ? 's' : ''} sur ${all.length}`;
         }
-        document.getElementById('presence-summary').textContent = summary;
+        panelElement('presence-summary').textContent = summary;
         this.listElement.querySelectorAll('.participant-row').forEach(row => this.updateStatus(row));
-        document.getElementById('participants-empty').hidden = all.length > 0;
+        panelElement('participants-empty').hidden = all.length > 0;
         this.setupFormElement.querySelector('.list-toolbar').hidden = all.length === 0;
     }
 
@@ -455,7 +480,7 @@ export class ParticipantManager {
         try {
             const participants = await this.getParticipantsFromForm();
             if (participants.length === 0) {
-                alert('Veuillez ajouter au moins un participant');
+                panelWindow().alert('Veuillez ajouter au moins un participant');
                 return;
             }
 
@@ -475,7 +500,7 @@ export class ParticipantManager {
             window.dispatchEvent(event);
         } catch (error) {
             console.error('Erreur lors du démarrage du jeu:', error);
-            alert('Erreur lors du démarrage du jeu');
+            panelWindow().alert('Erreur lors du démarrage du jeu');
         }
     }
 
@@ -543,11 +568,11 @@ export class ParticipantManager {
     }
 
     showGameActiveMessage() {
-        document.getElementById('game-active-message').hidden = false;
+        panelElement('game-active-message').hidden = false;
     }
 
     hideGameActiveMessage() {
-        document.getElementById('game-active-message').hidden = true;
+        panelElement('game-active-message').hidden = true;
     }
 
     // --------- Préférences (localStorage + fallback cookies noms) ---------

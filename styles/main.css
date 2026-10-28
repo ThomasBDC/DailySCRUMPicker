@@ -343,6 +343,30 @@ select {
     padding: 20px 20px 12px;
 }
 
+.offcanvas-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* Panneau détaché dans sa propre fenêtre : il la remplit entièrement */
+.config-window {
+    background: var(--surface);
+}
+
+.offcanvas-panel.is-detached {
+    inset: 0;
+    width: auto;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+    transition: none;
+}
+
+.is-detached #detach-config {
+    display: none;
+}
+
 .offcanvas-header h2 {
     margin: 0;
     font-size: 20px;

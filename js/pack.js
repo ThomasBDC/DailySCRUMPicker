@@ -5,6 +5,7 @@
 import { resizeImage } from './image.js';
 import { announcePick, announceRoundReset } from './participants.js';
 import { PackSounds } from './packSounds.js';
+import { panelElement } from './configWindow.js';
 
 // Niveaux de rareté, tirés au moment de la génération du paquet
 const RARITIES = [
@@ -239,11 +240,11 @@ export class PackOpeningPicker {
 
     // Réglages du paquet (libellé, image, bruitages) dans le panneau de configuration
     bindSettings() {
-        const labelInput = document.getElementById('pack-label-input');
-        const soundInput = document.getElementById('pack-sound-input');
-        const imageInput = document.getElementById('pack-image-input');
-        this.imageThumb = document.getElementById('pack-image-thumb');
-        this.imageRemove = document.getElementById('pack-image-remove');
+        const labelInput = panelElement('pack-label-input');
+        const soundInput = panelElement('pack-sound-input');
+        const imageInput = panelElement('pack-image-input');
+        this.imageThumb = panelElement('pack-image-thumb');
+        this.imageRemove = panelElement('pack-image-remove');
 
         if (labelInput) {
             labelInput.value = this.label;
@@ -266,7 +267,7 @@ export class PackOpeningPicker {
                 }
             });
             this.imageThumb?.addEventListener('click', () => imageInput.click());
-            document.getElementById('pack-image-choose')?.addEventListener('click', () => imageInput.click());
+            panelElement('pack-image-choose')?.addEventListener('click', () => imageInput.click());
         }
 
         this.imageRemove?.addEventListener('click', () => this.setImage(null));

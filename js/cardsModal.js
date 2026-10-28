@@ -4,6 +4,7 @@
 
 import { MOVES, proposeAttacks } from './pack.js';
 import { MAX_ATTACKS, ATTACK_MAX_LENGTH } from './participants.js';
+import { panelElement } from './configWindow.js';
 
 const SUGGESTIONS_ID = 'attack-suggestions';
 
@@ -75,12 +76,20 @@ export class CardsModal {
             if (e.target === this.modal) this.close();
         });
         // Échap ferme la modale sans fermer le panneau de configuration en dessous
-        // (écouteur en phase de capture, avant celui du panneau)
-        window.addEventListener('keydown', (e) => {
+        // (écouteur en phase de capture, avant celui du panneau), dans la fenêtre où elle
+        // s'affiche : elle suit le panneau quand il est détaché
+        this.onKeyDown = (e) => {
             if (e.key !== 'Escape' || !this.isOpen()) return;
             e.stopPropagation();
             this.close();
-        }, true);
+        };
+        // Revenue dans la page avec le panneau, qui y est fermé : elle disparaît aussi
+        window.addEventListener('configWindowClosed', () => {
+            if (!this.isOpen()) return;
+            this.modal.style.display = 'none';
+            this.modal.classList.remove('closing');
+            this.list.replaceChildren();
+        });
         this.list.addEventListener('input', (e) => {
             if (e.target.matches('.attack-input')) this.save(e.target.closest('.card-config'));
         });
@@ -114,6 +123,9 @@ export class CardsModal {
         this.empty.hidden = participants.length > 0;
         this.modal.classList.remove('closing');
         this.modal.style.display = 'block';
+        this.keyWindow?.removeEventListener('keydown', this.onKeyDown, true);
+        this.keyWindow = this.modal.ownerDocument.defaultView;
+        this.keyWindow.addEventListener('keydown', this.onKeyDown, true);
         (this.list.querySelector('.attack-input') || this.modal.querySelector('.cards-modal-close')).focus();
     }
 
@@ -124,7 +136,7 @@ export class CardsModal {
             this.modal.style.display = 'none';
             this.modal.classList.remove('closing');
             this.list.replaceChildren();
-            document.getElementById('pack-cards-open')?.focus();
+            panelElement('pack-cards-open')?.focus();
         }, 300);
     }
 

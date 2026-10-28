@@ -10,6 +10,7 @@ import { MusicPanel } from './musicPanel.js';
 import { setupSettingsTransfer, PICKER_TYPES } from './settings.js';
 import { loadSearchDuration, saveSearchDuration, formatSeconds, SEARCH_DURATION_MIN, SEARCH_DURATION_MAX, loadDecor, saveDecor } from './ovniSettings.js';
 import { CardsModal } from './cardsModal.js';
+import { panelElement } from './configWindow.js';
 
 class Game {
     constructor() {
@@ -245,19 +246,19 @@ class Game {
 
     // Affiche les réglages propres au sélecteur courant dans le panneau de configuration
     updatePickerSettings() {
-        const ovniSettings = document.getElementById('ovni-settings');
+        const ovniSettings = panelElement('ovni-settings');
         if (ovniSettings) {
             ovniSettings.hidden = this.currentPicker !== '3d';
         }
-        const packSettings = document.getElementById('pack-settings');
+        const packSettings = panelElement('pack-settings');
         if (packSettings) {
             packSettings.hidden = this.currentPicker !== 'pack';
         }
-        const wheelSettings = document.getElementById('wheel-settings');
+        const wheelSettings = panelElement('wheel-settings');
         if (wheelSettings) {
             wheelSettings.hidden = this.currentPicker !== 'wheel';
         }
-        const taptaupSettings = document.getElementById('taptaup-settings');
+        const taptaupSettings = panelElement('taptaup-settings');
         if (taptaupSettings) {
             taptaupSettings.hidden = this.currentPicker !== 'taptaup';
         }

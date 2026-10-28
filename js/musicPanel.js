@@ -3,6 +3,7 @@
 
 import { BUILTIN_TRACKS, LIBRARY_CATEGORIES, MOMENTS, formatDuration, searchLibrary } from './music.js';
 import { addSound, deleteSound, listSounds } from './soundStore.js';
+import { panelElement, panelWindow } from './configWindow.js';
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
 const MOMENT_LABELS = { shuffle: 'Mélange', pick: 'Choisi' };
@@ -116,7 +117,7 @@ export class MusicPanel {
 
         // Une écoute s'arrête quand on quitte l'onglet ou qu'on ferme le panneau
         const stopPreview = () => {
-            if (this.root.hidden || !document.getElementById('setup-form').classList.contains('active')) {
+            if (this.root.hidden || !panelElement('setup-form').classList.contains('active')) {
                 this.audio.stopPreview();
             }
         };
@@ -126,10 +127,10 @@ export class MusicPanel {
     }
 
     refreshSettings() {
-        const volume = document.getElementById('music-volume');
+        const volume = panelElement('music-volume');
         volume.value = String(Math.round(this.settings.volume * 100));
-        document.getElementById('music-volume-value').textContent = `${volume.value} %`;
-        document.querySelectorAll('[data-music-mode]').forEach((input) => {
+        panelElement('music-volume-value').textContent = `${volume.value} %`;
+        panelElement('setup-form').querySelectorAll('[data-music-mode]').forEach((input) => {
             input.checked = !!this.settings.enabled[input.dataset.musicMode];
         });
         MOMENTS.forEach(moment => this.renderPlaylist(moment));
@@ -384,11 +385,11 @@ export class MusicPanel {
         }
         await this.loadCustomSounds();
         this.showView({ kind: 'custom' });
-        if (rejected.length) alert(`Certains fichiers n'ont pas été ajoutés :\n${rejected.join('\n')}`);
+        if (rejected.length) panelWindow().alert(`Certains fichiers n'ont pas été ajoutés :\n${rejected.join('\n')}`);
     }
 
     async removeCustom(track) {
-        if (!confirm(`Supprimer « ${track.title} » de vos sons ?`)) return;
+        if (!panelWindow().confirm(`Supprimer « ${track.title} » de vos sons ?`)) return;
         if (this.audio.previewTrackId === track.id) this.audio.stopPreview();
         try {
             await deleteSound(track.id);
